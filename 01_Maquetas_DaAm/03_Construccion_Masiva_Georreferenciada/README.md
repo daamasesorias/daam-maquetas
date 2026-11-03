@@ -61,3 +61,6 @@ Se revisaron los seis esquemas del Excel, las 36 coordenadas, la alternancia de 
 Los marcadores del mapa representan casas de uno o dos pisos con su número visible, manteniendo los colores de estado y alertas. El logo mantiene el diseño existente con mayor espacio alrededor.
 
 Actualización V4: Sector eliminado de la presentación de todas las hojas y del CSV. El campo histórico del Excel no se usa para filtrar ni agrupar. Gantt compacta de una franja por vivienda: azul ejecutado, celeste pendiente, estado y porcentaje al final. Mapa con rellenos uniformes: gris sin iniciar, azul terminada, rojo en proceso atrasada y amarillo en proceso sin atraso.
+
+
+Logo corregido: `interfaz/logo-masiva.svg` integra el símbolo original y el nombre de la plataforma. No utiliza un subtítulo HTML separado. Para esta corrección basta reemplazar `interfaz/index.html`, `interfaz/masiva.css` y agregar `interfaz/logo-masiva.svg`.
