@@ -68,3 +68,6 @@ Límites de carga: consolidado 15 MB y adjunto 10 MB. No incluye autenticación 
 ## Verificación realizada
 
 Probados los dos flujos independientes, relaciones de origen, alcance de inspecciones, lotes/uso/ensayos, validación de expedientes, bloqueo ante incumplimientos, adjuntos/revisiones, descargas, idempotencia, historial de cargas y exportaciones PDF/Excel. Ejecutadas las cinco vistas con DOM simulado; revisados los documentos, hojas y páginas renderizadas del informe. La revisión visual final en navegador de publicación queda pendiente.
+
+
+V8: se incluyen 33 vistas PNG de documentos de ejemplo, integradas por la aplicación para evitar vistas en blanco por rutas o compatibilidad SVG. Los adjuntos PDF e imágenes cuentan con botón Ver documento; los Excel se descargan. Se mantiene .streamlit/config.toml original.
