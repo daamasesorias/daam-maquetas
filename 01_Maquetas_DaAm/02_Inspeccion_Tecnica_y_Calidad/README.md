@@ -1,10 +1,10 @@
-# DaAm · Inspección Técnica y Calidad · V7
+# DaAm · Inspección Técnica y Calidad · V9
 
 Plataforma reestructurada para una sola obra ficticia. Los documentos y registros técnicos se elaboran fuera de la plataforma. Aquí se cargan, vinculan y conservan para la trazabilidad y el expediente de validación de cada partida.
 
 ## Instalación y actualización
 
-Esta versión cambia la estructura de datos. Para revisar el ejemplo, extraer la carpeta completa del ZIP, instalar `requirements.txt` y ejecutar:
+Para revisar el ejemplo, extraer la carpeta completa del ZIP, instalar `requirements.txt` y ejecutar:
 
 ```bash
 pip install -r requirements.txt
@@ -21,11 +21,11 @@ Utiliza `maestro_calidad.xlsx` y crea automáticamente `registros_calidad_v7.sql
 2. Protocolos de Calidad y No Conformidades: el protocolo pertenece a una partida; las no conformidades pertenecen a su protocolo. Carga de documentos arriba, fichas y documentos en dos columnas debajo.
 3. Inspecciones y Hallazgos: la planilla de inspección documenta un recorrido; su alcance puede incluir varias partidas. Cada hallazgo pertenece a una inspección y a una partida de su alcance. No se convierte automáticamente en una NC.
 4. Materiales y Ensayos: lotes, recepción, guías, certificados, cantidades y elementos donde se utilizaron; muestras, laboratorio, criterio, resultado e informe del ensayo.
-5. Archivo Técnico y Reportes: carga central del consolidado Excel, carga de respaldos de la partida, expediente por partida agrupado por tipo documental, informe general PDF/Excel e historial de cargas.
+5. Archivo Técnico y Reportes: línea de tiempo documental por partida y generación del informe general PDF/Excel.
 
 ## Flujo de trabajo
 
-Los protocolos de calidad, planillas de inspección, NC, hallazgos, materiales, ensayos y validaciones profesionales se confeccionan y controlan externamente. Descargar el consolidado actual en Archivo Técnico y Reportes, actualizar sus hojas y cargarlo nuevamente. Cada carga se conserva como una versión con fecha, responsable, nombre del archivo y SHA-256. Los archivos adjuntos mantienen su propia revisión y fecha; una nueva carga del consolidado no los sobrescribe.
+Los protocolos de calidad, planillas de inspección, NC, hallazgos, materiales, ensayos y validaciones profesionales se confeccionan y controlan externamente. Descargar el consolidado actual en Protocolos de Calidad y No Conformidades, actualizar sus hojas y cargarlo nuevamente. Cada carga se conserva como una versión con fecha, responsable, nombre del archivo y SHA-256. Los archivos adjuntos mantienen su propia revisión y fecha; una nueva carga del consolidado no los sobrescribe.
 
 La plataforma no interpreta automáticamente un protocolo arbitrario ni extrae sus datos desde una imagen/PDF. El consolidado debe seguir las columnas del ejemplo. Los protocolos y planillas originales se adjuntan aparte como respaldo, en PDF, XLSX, PNG o JPEG.
 
@@ -34,8 +34,7 @@ Cada archivo se vincula a Partida, Protocolo, NoConformidad, Inspeccion, Hallazg
 ## Maestro Excel
 
 - Obra: datos de la única obra y fecha de corte del consolidado.
-- Partidas: ID, ubicación, familia, tipos de respaldo requeridos separados por `|`, necesidad de ensayo y validación profesional declarada, con responsable, fecha y documento.
-- Protocolos: ID, partida, fecha, resultado, responsable y documento original.
+- Protocolos: ID del protocolo y de su partida, nombre de la partida, ubicación, familia, fecha, resultado, responsable y documento original. Incluye requisitos documentales y validación profesional declarada.
 - NoConformidades: ID y protocolo de origen, descripción, estado, responsable, fechas, evidencias y documento de cierre.
 - Inspecciones: ID, fecha, inspector, alcance y documento de la planilla original.
 - AlcancesInspeccion: relación entre inspecciones y partidas; una inspección puede abarcar varias partidas.
@@ -70,4 +69,17 @@ Límites de carga: consolidado 15 MB y adjunto 10 MB. No incluye autenticación 
 Probados los dos flujos independientes, relaciones de origen, alcance de inspecciones, lotes/uso/ensayos, validación de expedientes, bloqueo ante incumplimientos, adjuntos/revisiones, descargas, idempotencia, historial de cargas y exportaciones PDF/Excel. Ejecutadas las cinco vistas con DOM simulado; revisados los documentos, hojas y páginas renderizadas del informe. La revisión visual final en navegador de publicación queda pendiente.
 
 
-V8: se incluyen 33 vistas PNG de documentos de ejemplo, integradas por la aplicación para evitar vistas en blanco por rutas o compatibilidad SVG. Los adjuntos PDF e imágenes cuentan con botón Ver documento; los Excel se descargan. Se mantiene .streamlit/config.toml original.
+Se incluyen 33 vistas PNG de los documentos de ejemplo. PDF, imágenes y Excel tienen vista de consulta; se conserva el original para descarga. Se mantiene .streamlit/config.toml original.
+
+
+## V9: historial documental por partida
+
+Las partidas se obtienen de los protocolos de calidad. El nuevo maestro no lleva una hoja Partidas independiente: Protocolos contiene el ID, nombre, ubicación y los datos de la partida. Si existen varios protocolos, se utiliza el más reciente por fecha e ID para el estado y metadatos. Mantenga los ID para conservar vínculos y adjuntos. Se admite la lectura de los consolidados anteriores con hoja Partidas y se conserva la misma base registros_calidad_v7.sqlite3.
+
+La carga del consolidado se encuentra en Protocolos de Calidad y No Conformidades; los documentos se adjuntan en Protocolos, Inspecciones o Materiales y Ensayos. Los respaldos generales de la partida, como EETT, se vinculan a Partida desde Protocolos.
+
+Archivo Técnico y Reportes muestra una línea de tiempo por partida, con documentos de todas las secciones ordenados de fecha más antigua a reciente; a igual fecha se ordenan por ID. Los adjuntos utilizan su fecha de carga. Seleccione el nombre para abrir la vista. Los Excel muestran los valores de las primeras 200 filas de cada hoja; el original conserva el formato completo y puede descargarse. Esta hoja no tiene formularios de ingreso ni carga.
+
+El informe general PDF/Excel reúne el estado del último protocolo, NC abiertas/resueltas, hallazgos, inspecciones, materiales/lotes, certificados, ensayos, criterios, resultados y el historial documental. El estado del protocolo se distingue del diagnóstico de respaldos del expediente.
+
+Actualización: reemplazar app.py, data_model.py, reports.py, schema.json, maestro_calidad.xlsx, README.md y la carpeta interfaz por los del paquete. Conservar .streamlit/config.toml y la base SQLite existente. No se modifica la estructura de carpetas.

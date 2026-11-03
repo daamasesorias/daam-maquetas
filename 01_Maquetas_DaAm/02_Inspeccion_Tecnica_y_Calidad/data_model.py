@@ -5,7 +5,28 @@ import pandas as pd
 from PIL import Image
 SCHEMA=json.loads((Path(__file__).parent/'schema.json').read_text())
 ENTITY={'Partida':'Partidas','Protocolo':'Protocolos','NoConformidad':'NoConformidades','Inspeccion':'Inspecciones','Hallazgo':'Hallazgos','Material':'Materiales','Ensayo':'Ensayos'}
+PART_FIELDS=['Nombre','Ubicacion','Familia','TiposRequeridos','RequiereEnsayo','EstadoDeclarado','Validador','FechaValidacion','DocumentoValidacion']
+def normalize_source(d):
+ # Compatibility with previously saved consolidated records; keep existing IDs and attachments.
+ previous={p['ID']:p for p in d.get('Partidas',[])};parts={}
+ for protocol in sorted(d.get('Protocolos',[]),key=lambda x:(x['Fecha'],x['ID'])):
+  pid=protocol['Partida'];legacy=previous.get(pid,{})
+  for field in PART_FIELDS:
+   key='NombrePartida' if field=='Nombre' else field
+   if key not in protocol:protocol[key]=legacy.get(field,'')
+  parts[pid]=dict(ID=pid,**{field:protocol['NombrePartida' if field=='Nombre' else field] for field in PART_FIELDS})
+ d['Partidas']=list(parts.values());return d
+
+def timeline(d,pid):
+ rel=related(d,pid);ids={v['Documento'] for v in d['Vinculos'] if v['Registro'] in rel.get(v['Entidad'],set())}
+ for sheet,entity,key in [('Protocolos','Protocolo','Documento'),('Inspecciones','Inspeccion','Documento'),('Ensayos','Ensayo','Informe'),('NoConformidades','NoConformidad','DocumentoCierre'),('Hallazgos','Hallazgo','DocumentoCierre')]:
+  ids.update(x[key] for x in d[sheet] if x['ID'] in rel[entity] and x[key])
+ rows=[dict(x,Adjunto=False) for x in d['Documentos'] if x['ID'] in ids]
+ rows += [dict(x,Adjunto=True) for x in d.get('Adjuntos',[]) if x['Registro'] in rel.get(x['Entidad'],set())]
+ return sorted(rows,key=lambda x:(x['Fecha'],x['ID']))
+
 def validate(d,external_docs=()):
+ normalize_source(d)
  for name,cols in SCHEMA.items():
   if name not in d:raise ValueError('Falta hoja '+name)
   if any(not set(cols)<=set(row) for row in d[name]):raise ValueError('Columnas incompletas en '+name)
@@ -20,6 +41,7 @@ def validate(d,external_docs=()):
   document(p['DocumentoValidacion'])
   if p['FechaValidacion']:date.fromisoformat(p['FechaValidacion'])
  for p in d['Protocolos']:
+  if not p['NombrePartida'] or not p['Ubicacion']:raise ValueError('Complete nombre y ubicación de la partida en el protocolo.')
   ref('Partida',p['Partida']);document(p['Documento']);date.fromisoformat(p['Fecha'])
   if p['Resultado'] not in ('Conforme','No conforme','Pendiente'):raise ValueError('Resultado de protocolo inválido.')
  for i in d['Inspecciones']:document(i['Documento']);date.fromisoformat(i['Fecha'])
@@ -55,10 +77,8 @@ def validate(d,external_docs=()):
  return d
 
 def load_master(file,external_docs=()):
- frames=pd.read_excel(file,sheet_name=None);d={}
- for name,cols in SCHEMA.items():
-  if name not in frames or not set(cols)<=set(frames[name].columns):raise ValueError('Hoja '+name+': estructura incompleta. Use el maestro V7.')
-  d[name]=[{k:('' if pd.isna(v) else v.isoformat()[:10] if isinstance(v,(datetime,date)) else v.item() if hasattr(v,'item') else v) for k,v in row.items()} for row in frames[name].to_dict('records')]
+ frames=pd.read_excel(file,sheet_name=None)
+ d={name:[{k:('' if pd.isna(v) else v.isoformat()[:10] if isinstance(v,(datetime,date)) else v.item() if hasattr(v,'item') else v) for k,v in row.items()} for row in frame.to_dict('records')] for name,frame in frames.items()}
  return validate(d,external_docs)
 
 def connect(db):
@@ -66,10 +86,10 @@ def connect(db):
 
 def read_state(seed,db):
  with connect(db) as c:
-  row=c.execute('SELECT contenido FROM source_versions ORDER BY id DESC LIMIT 1').fetchone();d=json.loads(row[0]) if row else copy.deepcopy(seed)
+  row=c.execute('SELECT contenido FROM source_versions ORDER BY id DESC LIMIT 1').fetchone();d=normalize_source(json.loads(row[0]) if row else copy.deepcopy(seed))
   d['Adjuntos']=[dict(ID=r[0],Nombre=r[1],Tipo=r[2],Entidad=r[3],Registro=r[4],Revision=r[5],Fecha=r[6],Autor=r[7],Mime=r[8],Hash=r[9]) for r in c.execute('SELECT id,nombre,tipo,entidad,registro,revision,fecha,autor,mime,sha256 FROM attachments ORDER BY fecha DESC')]
   d['Cargas']=[dict(ID=r[0],Fecha=r[1],Autor=r[2],Archivo=r[3],Hash=r[4]) for r in c.execute('SELECT id,fecha,autor,nombre,sha256 FROM source_versions ORDER BY id DESC')]
- d['obra']=dict((r['Parametro'],r['Valor']) for r in d['Obra']);d['Dossiers']=[dossier(d,p['ID']) for p in d['Partidas']];return d
+ d['Timelines']={p['ID']:timeline(d,p['ID']) for p in d['Partidas']};d['obra']=dict((r['Parametro'],r['Valor']) for r in d['Obra']);d['Dossiers']=[dossier(d,p['ID']) for p in d['Partidas']];return d
 
 def related(d,pid):
  protocols={p['ID'] for p in d['Protocolos'] if p['Partida']==pid};ncs={h['ID'] for h in d['NoConformidades'] if h['Protocolo'] in protocols};hs={h['ID'] for h in d['Hallazgos'] if h['Partida']==pid};ins={a['Inspeccion'] for a in d['AlcancesInspeccion'] if a['Partida']==pid};mats={u['Material'] for u in d['UsosMaterial'] if u['Partida']==pid};tests={e['ID'] for e in d['Ensayos'] if e['Partida']==pid}
@@ -109,7 +129,7 @@ def apply_action(seed,db,a):
  with connect(db) as c:
   c.execute('BEGIN IMMEDIATE')
   if c.execute('SELECT 1 FROM actions WHERE id=?',(a['id'],)).fetchone():return 'Acción ya procesada.'
-  row=c.execute('SELECT contenido FROM source_versions ORDER BY id DESC LIMIT 1').fetchone();d=json.loads(row[0]) if row else seed
+  row=c.execute('SELECT contenido FROM source_versions ORDER BY id DESC LIMIT 1').fetchone();d=normalize_source(json.loads(row[0]) if row else copy.deepcopy(seed))
   author=str(a.get('author','ITO')).strip()[:100] or 'ITO';now=datetime.now().astimezone().isoformat(timespec='seconds');kind=a.get('kind')
   if kind=='import_excel':
    encoded=a.get('file','')

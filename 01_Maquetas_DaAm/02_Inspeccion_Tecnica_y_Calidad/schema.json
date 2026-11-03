@@ -3,9 +3,14 @@
     "Parametro",
     "Valor"
   ],
-  "Partidas": [
+  "Protocolos": [
     "ID",
-    "Nombre",
+    "Partida",
+    "Fecha",
+    "Resultado",
+    "Responsable",
+    "Documento",
+    "NombrePartida",
     "Ubicacion",
     "Familia",
     "TiposRequeridos",
@@ -14,14 +19,6 @@
     "Validador",
     "FechaValidacion",
     "DocumentoValidacion"
-  ],
-  "Protocolos": [
-    "ID",
-    "Partida",
-    "Fecha",
-    "Resultado",
-    "Responsable",
-    "Documento"
   ],
   "NoConformidades": [
     "ID",

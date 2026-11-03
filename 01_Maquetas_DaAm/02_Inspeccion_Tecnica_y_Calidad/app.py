@@ -1,5 +1,6 @@
 from pathlib import Path
 import io,base64
+from html import escape
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
@@ -33,6 +34,10 @@ if a and a.get('id')!=st.session_state.get('last_action'):
   elif kind in ('download','preview'):
    name,mime,raw=download_attachment(db,a.get('document'));ext={'application/pdf':'.pdf','image/png':'.png','image/jpeg':'.jpg','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'.xlsx'}[mime]
    if not name.lower().endswith(ext):name+=ext
+   if kind=='preview' and mime.endswith('spreadsheetml.sheet'):
+    sheets=pd.read_excel(io.BytesIO(raw),sheet_name=None,nrows=200)
+    html='<meta charset="utf-8"><style>body{font:14px Arial;color:#173960;padding:15px}table{border-collapse:collapse}td,th{padding:8px;border:1px solid #cbd8e5}th{background:#eaf0f7}</style>'+''.join('<h2>'+escape(sheet)+'</h2>'+frame.fillna('').to_html(index=False,escape=True) for sheet,frame in sheets.items())
+    raw=html.encode();mime='text/html'
    msg='Archivo preparado.'
   elif kind=='report':
    fmt=a.get('format')
