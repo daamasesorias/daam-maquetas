@@ -1,5 +1,8 @@
 from pathlib import Path
 import base64
+import io
+import pandas as pd
+from data_model import REQUIRED
 import streamlit as st
 import streamlit.components.v1 as components
 from data_model import load_master,read_state,apply_action
@@ -19,7 +22,12 @@ action=component(data=data,result=result,key='calidad')
 if action and action.get('id')!=st.session_state.get('last_action'):
     st.session_state.last_action=action['id']
     try:
-        if action.get('kind')=='report':
+        if action.get('kind')=='template':
+            buf=io.BytesIO()
+            with pd.ExcelWriter(buf,engine='openpyxl') as writer:
+                for sheet in REQUIRED:pd.DataFrame([r for r in data[sheet] if not (sheet=='Documentos' and r['Archivo'].startswith('DOC-'))],columns=REQUIRED[sheet]).to_excel(writer,sheet_name=sheet,index=False)
+            result={'id':action['id'],'ok':True,'message':'Planilla preparada.','download':{'name':'maestro_inspeccion_calidad.xlsx','mime':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','base64':base64.b64encode(buf.getvalue()).decode()}}
+        elif action.get('kind')=='report':
             fmt=action.get('format');period=action.get('period','Semanal');cut=action.get('cut')
             if fmt not in ('pdf','xlsx') or period not in ('Diario','Semanal'):raise ValueError('Formato o período inválido.')
             raw=build_pdf(data,cut,period) if fmt=='pdf' else build_excel(data,cut,period)

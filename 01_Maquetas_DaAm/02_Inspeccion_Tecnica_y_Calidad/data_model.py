@@ -50,7 +50,8 @@ def empty_overlay():return {'ins':{},'answers':{},'halls':{},'comments':[],'file
 
 
 def merge(seed,overlay):
-    d=copy.deepcopy(seed)
+    d=copy.deepcopy(overlay.get('source') or seed)
+    d['Documentos']+=overlay.get('documents',[])
     for sheet,key in [('Inspecciones','ins'),('Hallazgos','halls')]:
         items={r['ID']:r for r in d[sheet]};items.update(overlay[key]);d[sheet]=list(items.values())
     for uid,rows in overlay['answers'].items():d['Respuestas']=[r for r in d['Respuestas'] if r['Inspeccion']!=uid]+rows
@@ -85,46 +86,44 @@ def apply_action(seed,db,action):
         if c.execute('SELECT 1 FROM actions WHERE id=?',(str(action['id']),)).fetchone():return 'Acción ya registrada.'
         row=c.execute('SELECT content FROM app_state WHERE id=1').fetchone();o=json.loads(row[0]) if row else empty_overlay();d=merge(seed,o)
         role=action.get('role');author=clean_text(action.get('author'),100)
-        if role not in ('ITO','Contratista') or not author:raise ValueError('Seleccione rol y nombre del responsable.')
+        if role!='ITO' or not author:raise ValueError('Ingrese el nombre del responsable ITO.')
         kind=action.get('kind');now=datetime.now().astimezone().isoformat(timespec='seconds');today=now[:10]
         # La fecha de corte demo no limita la fecha real de nuevos registros.
-        if kind in ('draft','submit'):
-            if role!='ITO':raise ValueError('La inspección debe registrarla la ITO.')
-            uid=action.get('inspection');i=next((r for r in d['Inspecciones'] if r['ID']==uid),None)
-            if not i:raise ValueError('Inspección no encontrada.')
-            if i['Estado'] in ('Aprobada','Rechazada'):raise ValueError('La inspección ya fue emitida. Cree una reinspección.')
-            criteria=[r for r in d['Criterios'] if r['Plantilla']==i['Plantilla']];values=action.get('answers',{})
-            rows=[]
-            for item in criteria:
-                v=values.get(item['ID'],{});answer=v.get('answer','')
-                if answer not in ('','Cumple','No cumple','No aplica'):raise ValueError('Respuesta inválida.')
-                if kind=='submit' and not answer:raise ValueError('Complete todos los criterios antes de emitir.')
-                rows.append({'Inspeccion':uid,'Criterio':item['ID'],'Respuesta':answer,'Observacion':clean_text(v.get('note'))})
-            if kind=='submit' and not any(r['Respuesta'] in ('Cumple','No cumple') for r in rows):raise ValueError('Debe existir al menos un criterio aplicable para emitir.')
-            negative=any(r['Respuesta']=='No cumple' for r in rows)
-            if kind=='submit' and negative and (not clean_text(action.get('description')) or not action.get('photo')):raise ValueError('Un incumplimiento requiere descripción y fotografía.')
-            photo=store_photo(action.get('photo'),o)
-            updated={**i,'Estado':'Borrador' if kind=='draft' else 'Rechazada' if negative else 'Aprobada','Inspector':author,'Ejecutada':'' if kind=='draft' else today,'Foto':photo or i.get('Foto','')}
-            o['ins'][uid]=updated;o['answers'][uid]=rows
-            if kind=='submit' and negative:
-                hid='H-'+uuid.uuid4().hex[:6].upper();tpl=next(t for t in d['Plantillas'] if t['ID']==i['Plantilla']);deadline=clean_text(action.get('deadline'),10);date.fromisoformat(deadline)
-                if deadline<today:raise ValueError('La fecha compromiso de un hallazgo nuevo no puede ser anterior a hoy.')
-                o['halls'][hid]={'ID':hid,'Tipo':'No conformidad','Inspeccion':uid,'Ubicacion':i['Ubicacion'],'Descripcion':clean_text(action.get('description')),'Responsable':tpl['Contratista'],'Criticidad':action.get('criticality','Media') if action.get('criticality') in ('Alta','Media','Baja') else 'Media','Creado':today,'Compromiso':deadline,'Estado':'Abierta','Bloquea':bool(action.get('blocks')),'X':50,'Y':50,'Foto_inicial':photo,'Foto_reparacion':'','Cierre':''}
-                o['comments'].append({'ID':'C-'+uuid.uuid4().hex[:8],'Hallazgo':hid,'Fecha':now,'Autor':author,'Rol':role,'Texto':'Hallazgo creado desde '+uid+': '+clean_text(action.get('description'))})
-            msg='Borrador guardado.' if kind=='draft' else 'Inspección emitida'+(' y no conformidad creada.' if negative else '.')
-        elif kind=='reinspect':
-            if role!='ITO':raise ValueError('Solo ITO puede abrir una reinspección.')
-            old=next((i for i in d['Inspecciones'] if i['ID']==action.get('inspection')),None)
-            if not old:raise ValueError('Inspección no encontrada.')
-            if old['Estado'] not in ('Aprobada','Rechazada'):raise ValueError('La inspección aún no ha sido emitida.')
-            uid='I-'+uuid.uuid4().hex[:6].upper();o['ins'][uid]={**old,'ID':uid,'Estado':'Pendiente','Programada':today,'Ejecutada':'','Inspector':author,'Revision':old['Revision']+1,'Origen':old['ID'],'Foto':''};msg='Reinspección creada: '+uid
+        if kind=='import_excel':
+            encoded=action.get('file','')
+            if len(encoded)>21_000_000:raise ValueError('El Excel supera 15 MB.')
+            raw=base64.b64decode(encoded.split(',',1)[1],validate=True)
+            if len(raw)>15_000_000:raise ValueError('El Excel supera 15 MB.')
+            imported=load_master(io.BytesIO(raw))
+            for sheet in ('Documentos','Evidencias','Planos'):
+                for item in imported[sheet]:
+                    if not (Path(__file__).parent/'interfaz'/item['Archivo']).is_file():raise ValueError('Recurso no encontrado: '+item['Archivo'])
+            o['source']=imported
+            for key in ('ins','answers','halls'):o[key]={}
+            o['comments']=[];o['approvals']=[]
+            msg='Planilla validada y cargada. Datos de inspecciones y hallazgos actualizados.'
+        elif kind=='attach_document':
+            encoded=action.get('file','')
+            if not isinstance(encoded,str) or len(encoded)>14_000_000:raise ValueError('Documento demasiado grande.')
+            header,body=encoded.split(',',1);raw=base64.b64decode(body,validate=True)
+            if len(raw)>10_000_000:raise ValueError('Máximo 10 MB.')
+            if header=='data:application/pdf;base64':
+                if not raw.startswith(b'%PDF-'):raise ValueError('PDF inválido.')
+            else:
+                image=Image.open(io.BytesIO(raw));image.verify()
+                if image.format not in ('PNG','JPEG'):raise ValueError('Adjunte PDF, PNG o JPEG.')
+            inspection=next((i for i in d['Inspecciones'] if i['ID']==action.get('inspection')),None)
+            if not inspection:raise ValueError('Inspección no encontrada.')
+            uid='DOC-'+uuid.uuid4().hex[:8];o['files'][uid]=encoded
+            o.setdefault('documents',[]).append({'ID':uid,'Nombre':clean_text(action.get('name'),150),'Categoria':action.get('category') if action.get('category') in ('Protocolo','Certificado','Acta','Otros') else 'Otros','Revision':'Registro ITO','Fecha':today,'Ubicacion':inspection['Ubicacion'],'Inspeccion':inspection['ID'],'Hallazgo':'','Archivo':uid,'Indicacion':'Documento adjuntado por la ITO.'})
+            msg='Documento adjuntado y vinculado a '+inspection['ID']+'.'
         elif kind in ('comment','repair','close','reopen'):
             h=next((h for h in d['Hallazgos'] if h['ID']==action.get('finding')),None)
             if not h:raise ValueError('Hallazgo no encontrado.')
             text=clean_text(action.get('text'));new=copy.deepcopy(h)
             if not text:raise ValueError('Ingrese un comentario de trazabilidad.')
             if kind=='repair':
-                if role!='Contratista' or h['Estado']!='Abierta':raise ValueError('La reparación debe solicitarla el contratista sobre un hallazgo abierto.')
+                if h['Estado']!='Abierta':raise ValueError('Registre la reparación sobre un hallazgo abierto.')
                 photo=store_photo(action.get('photo'),o)
                 if not photo:raise ValueError('Adjunte evidencia de reparación.')
                 new.update(Estado='En revisión',Foto_reparacion=photo)
