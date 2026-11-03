@@ -2,3 +2,5 @@
 
 /* Espaciado común con las otras plataformas DaAm. */
 .logo{margin:38px auto 36px;width:100%;padding:0 6px}.unit-marker svg{display:block;overflow:visible;filter:drop-shadow(0 2px 3px #102e5277)}@media(max-width:700px){.logo{width:210px;margin:18px auto 24px;padding:0}}
+
+.rhythm .rowtrack{height:34px;min-height:34px}.rhythm td{padding:3px 8px;height:34px;vertical-align:middle}.rhythm .timecell{padding:0}.housebar{position:absolute;top:9px;height:16px;border-radius:3px;background:#b9d9f0;overflow:hidden}.housefill{height:100%;background:#28577d;max-width:100%}.bar-status{position:absolute;top:8px;font-size:11px;line-height:18px;white-space:nowrap;color:#365d85}.rhythm .unitcell{min-width:105px;max-width:105px}.rhythm .group td{padding:7px 10px}
