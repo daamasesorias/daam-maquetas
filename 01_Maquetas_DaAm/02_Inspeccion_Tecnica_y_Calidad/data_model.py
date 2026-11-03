@@ -12,10 +12,15 @@ import pandas as pd
 
 REQUIRED={'Obra':['Parametro','Valor'],'Ubicaciones':['ID','Piso','Unidad','Nombre'],'Plantillas':['ID','Nombre','Familia','Contratista','Documento'],'Criterios':['ID','Plantilla','Orden','Texto'],'Inspecciones':['ID','Ubicacion','Plantilla','Programada','Ejecutada','Estado','Inspector','Revision'],'Respuestas':['Inspeccion','Criterio','Respuesta','Observacion'],'Hallazgos':['ID','Tipo','Inspeccion','Ubicacion','Descripcion','Responsable','Criticidad','Creado','Compromiso','Estado','Bloquea','X','Y','Foto_inicial','Foto_reparacion','Cierre'],'Comentarios':['ID','Hallazgo','Fecha','Autor','Rol','Texto'],'Documentos':['ID','Nombre','Categoria','Revision','Fecha','Ubicacion','Inspeccion','Hallazgo','Archivo','Indicacion'],'Evidencias':['ID','Titulo','Ubicacion','Inspeccion','Hallazgo','Archivo'],'Planos':['ID','Nombre','Piso','Especialidad','Revision','Archivo']}
 
+REQUIRED.pop('Planos',None)
+REQUIRED.update({'Materiales':['ID','Material','Proveedor','Lote','Recepcion','Guia','Certificado','Ubicacion','Elemento','Inspeccion'],'Ensayos':['ID','Material','Muestra','Tipo','Muestreo','Laboratorio','Resultado','Criterio','Estado','Informe','Hallazgo']})
+
 def load_master(path):
     frames=pd.read_excel(path,sheet_name=None)
     result={}
     for name,cols in REQUIRED.items():
+        if name in ('Materiales','Ensayos') and name not in frames:
+            result[name]=[];continue
         if name not in frames or not set(cols)<=set(frames[name].columns):raise ValueError(f'Hoja {name}: columnas requeridas incompletas.')
         result[name]=[{k:('' if pd.isna(v) else v.isoformat()[:10] if isinstance(v,(date,datetime)) else v.item() if hasattr(v,'item') else v) for k,v in row.items()} for row in frames[name].to_dict('records')]
         if 'ID' in cols and len({r['ID'] for r in result[name]})!=len(result[name]):raise ValueError(f'IDs duplicados en {name}.')
@@ -32,10 +37,21 @@ def load_master(path):
     for h in result['Hallazgos']:
         if h['Inspeccion'] not in ins or h['Ubicacion'] not in locs or h['Estado'] not in ['Abierta','En revisión','Cerrada'] or not 0<=h['X']<=100 or not 0<=h['Y']<=100:raise ValueError(f"Hallazgo inválido: {h['ID']}")
         date.fromisoformat(h['Compromiso'])
-    for name in ['Documentos','Evidencias','Planos']:
+    for name in ['Documentos','Evidencias']:
         for r in result[name]:
             p=Path(r['Archivo'])
             if p.is_absolute() or '..' in p.parts:raise ValueError('Ruta de recurso inválida.')
+    materials={m['ID']:m for m in result['Materiales']};documents={d['ID'] for d in result['Documentos']}
+    for m in materials.values():
+        if m['Ubicacion'] not in locs or m['Inspeccion'] not in ins:raise ValueError('Material con ubicación o inspección inexistente.')
+        date.fromisoformat(m['Recepcion'])
+        if any(m[k] and m[k] not in documents for k in ('Guia','Certificado')):raise ValueError('Documento de material inexistente.')
+    for e in result['Ensayos']:
+        if e['Material'] not in materials or e['Estado'] not in ('Cumple','No cumple','Pendiente'):raise ValueError('Ensayo con material o estado inválido.')
+        date.fromisoformat(e['Muestreo'])
+        if e['Informe'] and e['Informe'] not in documents:raise ValueError('Informe de ensayo inexistente.')
+        if e['Estado']!='Pendiente' and not e['Resultado']:raise ValueError('Ensayo evaluado sin resultado.')
+        if e['Hallazgo'] and not any(h['ID']==e['Hallazgo'] for h in result['Hallazgos']):raise ValueError('Hallazgo de ensayo inexistente.')
     return result
 
 
@@ -51,6 +67,7 @@ def empty_overlay():return {'ins':{},'answers':{},'halls':{},'comments':[],'file
 
 def merge(seed,overlay):
     d=copy.deepcopy(overlay.get('source') or seed)
+    d.setdefault('Materiales',[]);d.setdefault('Ensayos',[])
     d['Documentos']+=overlay.get('documents',[])
     for sheet,key in [('Inspecciones','ins'),('Hallazgos','halls')]:
         items={r['ID']:r for r in d[sheet]};items.update(overlay[key]);d[sheet]=list(items.values())
@@ -95,7 +112,7 @@ def apply_action(seed,db,action):
             raw=base64.b64decode(encoded.split(',',1)[1],validate=True)
             if len(raw)>15_000_000:raise ValueError('El Excel supera 15 MB.')
             imported=load_master(io.BytesIO(raw))
-            for sheet in ('Documentos','Evidencias','Planos'):
+            for sheet in ('Documentos','Evidencias'):
                 for item in imported[sheet]:
                     if not (Path(__file__).parent/'interfaz'/item['Archivo']).is_file():raise ValueError('Recurso no encontrado: '+item['Archivo'])
             o['source']=imported
@@ -116,19 +133,12 @@ def apply_action(seed,db,action):
             if not inspection:raise ValueError('Inspección no encontrada.')
             finding=action.get('finding','')
             if finding and not any(h['ID']==finding and h['Inspeccion']==inspection['ID'] for h in d['Hallazgos']):raise ValueError('Hallazgo e inspección no coinciden.')
+            material=action.get('material','');test=action.get('test','')
+            if material and not any(m['ID']==material and m['Inspeccion']==inspection['ID'] for m in d['Materiales']):raise ValueError('Material e inspección no coinciden.')
+            if test and not any(e['ID']==test and e['Material']==material for e in d['Ensayos']):raise ValueError('Ensayo y material no coinciden.')
             uid='DOC-'+uuid.uuid4().hex[:8];o['files'][uid]=encoded
-            o.setdefault('documents',[]).append({'ID':uid,'Nombre':clean_text(action.get('name'),150),'Categoria':action.get('category') if action.get('category') in ('Protocolo','Certificado','Acta','Otros','No conformidad','Observación','Respuesta','Cierre de hallazgo') else 'Otros','Revision':'Registro ITO','Fecha':today,'Ubicacion':inspection['Ubicacion'],'Inspeccion':inspection['ID'],'Hallazgo':finding,'Archivo':uid,'Indicacion':'Documento adjuntado por la ITO.'})
+            o.setdefault('documents',[]).append({'ID':uid,'Nombre':clean_text(action.get('name'),150),'Categoria':action.get('category') if action.get('category') in ('Protocolo','Certificado','Acta','Otros','No conformidad','Observación','Respuesta','Cierre de hallazgo','Informe de ensayo','Guía de despacho') else 'Otros','Revision':'Registro ITO','Fecha':today,'Ubicacion':inspection['Ubicacion'],'Inspeccion':inspection['ID'],'Hallazgo':finding,'Material':action.get('material',''),'Ensayo':action.get('test',''),'Archivo':uid,'Indicacion':'Documento adjuntado por la ITO.'})
             msg='Documento adjuntado y vinculado a '+inspection['ID']+'.'
-        elif kind=='mark':
-            if role!='ITO':raise ValueError('Solo ITO puede guardar anotaciones.')
-            plan=next((p for p in d['Planos'] if p['ID']==action.get('plan')),None)
-            if not plan:raise ValueError('Plano no encontrado.')
-            marks=action.get('marks',[])
-            if not isinstance(marks,list) or len(marks)>100:raise ValueError('Cantidad de marcas inválida.')
-            for m in marks:
-                if m.get('kind') not in ('line','circle','arrow'):raise ValueError('Marca inválida.')
-                if any(not isinstance(m.get(k),(int,float)) or not 0<=m[k]<=100 for k in ('x1','y1','x2','y2')):raise ValueError('Coordenadas inválidas.')
-            o['marks'][plan['ID']]={'revision':plan['Revision'],'items':marks,'author':author,'date':now};msg='Anotaciones guardadas para '+plan['ID']+' '+plan['Revision']+'.'
         elif kind=='approve':
             if role!='ITO':raise ValueError('La validación debe realizarla la ITO.')
             uid=action.get('inspection');i=next((i for i in d['Inspecciones'] if i['ID']==uid),None)

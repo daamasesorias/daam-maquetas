@@ -1,48 +1,29 @@
-# DaAm · Inspección Técnica y Calidad · Versión corregida
+# DaAm · Inspección Técnica y Calidad
 
-Plataforma para una sola obra ficticia, de uso exclusivo de la ITO. Logo completo en un único archivo SVG, con «Inspección Técnica y Calidad» integrado en una sola línea.
+Una obra ficticia. Instalar requirements.txt y ejecutar `streamlit run app.py`.
 
-## Ejecutar
+## Actualización V5
 
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-```
+Se reemplazó Planos de inspección por Materiales y Ensayos. Las cinco pestañas son Panel Central, Inspecciones y carga de datos, Materiales y Ensayos, Hallazgos y No Conformidades, Archivo Técnico y Reportes.
 
-Reemplazar la carpeta de código anterior completa. Entrada: `app.py`. Si existen registros propios, respaldar el Excel y `registros_calidad.sqlite3` antes de actualizar; no eliminar la base para aplicar esta versión.
+Los levantamientos, protocolos, hallazgos, registros de materiales y ensayos se confeccionan externamente, en Excel. La plataforma recibe el consolidado y sus documentos terminados, vincula los respaldos y mantiene la trazabilidad. No se crean inspecciones ni hallazgos en pantalla.
 
-## Flujo de información
+Materiales incluye material, proveedor, lote, recepción, guía, certificado, ubicación de uso, elemento e inspección vinculada. Ensayos incluye muestra, material/lote, tipo de ensayo, fecha de muestreo, laboratorio, resultado, criterio, estado, informe y hallazgo asociado. Los archivos PDF/PNG/JPEG adicionales pueden adjuntarse a un material o ensayo. Cargar un informe no cambia el resultado o estado: estos se actualizan mediante el consolidado externo.
 
-La información se toma en terreno fuera de la plataforma y se consolida en Excel. En «Inspecciones y carga de datos», descargar la planilla actual, actualizar los resultados y cargar el archivo .xlsx. La aplicación valida la estructura antes de aceptarlo. No se confeccionan ni emiten protocolos en pantalla.
+El maestro de ejemplo incluye cuatro lotes y tres ensayos con resultados Cumple, No cumple y Pendiente. Los criterios son ficticios y los documentos son imágenes ilustrativas. No representan certificación ni requisitos normativos de una obra real.
 
-El Excel maestro incluye: Obra, Ubicaciones, Plantillas (catálogo de tipos de inspección), Criterios, Inspecciones, Respuestas, Hallazgos, Comentarios, Documentos, Evidencias y Planos. Mantener las hojas, columnas e identificadores de la plantilla. `Programada` se conserva como campo de fecha de referencia para compatibilidad con el maestro; no constituye un calendario de protocolos en la interfaz. `Ejecutada` corresponde a la fecha de inspección registrada.
+## Archivos que actualizar
 
-Al importar, el Excel consolidado reemplaza los datos fuente y resultados anteriores de inspecciones y hallazgos, incluyendo su trazabilidad. Conservar estos cambios en el consolidado antes de cargarlo. Los documentos adjuntados desde la plataforma y las anotaciones de planos se conservan. Las validaciones de actas se reinician para revisar el nuevo consolidado.
+Actualizar app.py, data_model.py, reports.py y la carpeta interfaz. El maestro incluido agrega las hojas Materiales y Ensayos; para mantener datos propios, añadir esas hojas con las mismas columnas al consolidado existente y cargarlo desde Inspecciones y carga de datos. No reemplazar un Excel propio por el ejemplo. Conservar y respaldar registros_calidad.sqlite3.
 
-La fuente inicial es `maestro_inspeccion_calidad.xlsx`, junto a `app.py`. Las planillas importadas y las gestiones posteriores quedan guardadas en `registros_calidad.sqlite3`. Para cargar información nueva después de comenzar a trabajar, utilizar el importador de la plataforma. Respaldar Excel y SQLite.
+Si ya existe una planilla importada en SQLite, reemplazar el Excel local no sustituye ese consolidado: cargar la versión ampliada desde la plataforma. Las versiones anteriores sin Materiales y Ensayos siguen abriendo, pero esa pestaña se mostrará vacía hasta cargar los nuevos registros.
 
-## Cinco pestañas
+## Vínculos del maestro
 
-1. Panel Central: datos de obra, cumplimiento de criterios, no conformidades abiertas/en revisión/cerradas, inspecciones registradas/aprobadas/sin resultado y alertas urgentes.
-2. Inspecciones y carga de datos: importar/exportar Excel y consultar resultados. Sin selector de roles ni formularios de emisión.
-3. Planos de inspección: nueve planos 2D con recintos, mobiliario, puertas, ventanas, ejes y referencias; variantes de arquitectura, estructura e instalaciones sanitarias. Pines consultables y herramientas Línea, Círculo y Flecha, disponibles directamente para ITO. Dibujar arrastrando y pulsar Guardar anotaciones. Deshacer retira la última marca; volver a guardar para persistir el cambio.
-4. Hallazgos y No Conformidades: evidencia inicial y de reparación, plazos, comentarios y cierre. Consulta de registros y carga de documentos elaborados fuera de la plataforma. El estado se actualiza mediante Excel.
-5. Archivo Técnico y Reportes: adjuntar protocolos u otros documentos PDF/PNG/JPEG vinculados a una inspección, consultar imágenes y descargar reportes PDF/Excel. Los PDF adjuntos se descargan; las imágenes se amplían dentro de la plataforma.
+Las relaciones utilizan ID. Materiales.Inspeccion y Materiales.Ubicacion deben existir; Guia y Certificado apuntan a Documentos.ID. Ensayos.Material apunta a Materiales.ID; Informe apunta a Documentos.ID y Hallazgo a Hallazgos.ID. Puede dejar los documentos aún no recibidos en blanco. Mantener los ID al actualizar para conservar los adjuntos vinculados.
 
-## Ejemplo y alcance
-
-24 inspecciones, cinco hallazgos, 17 documentos ilustrativos, nueve planos y 12 fotografías ficticias. Los documentos son láminas de referencia; los planos no tienen validez constructiva. Fecha de corte inicial: 03/11/2026.
-
-Cumplimiento = criterios Cumple / criterios aplicables evaluados. No aplica se excluye. Aprobación = inspecciones aprobadas / inspecciones con resultado. Las observaciones no aumentan el contador de no conformidades. Se muestra el estado actual registrado, no una reconstrucción histórica de estados.
-
-Máximos de carga: Excel 15 MB, documento 10 MB y fotografía de reparación 5 MB. El importador requiere recursos de documentos, evidencias y planos existentes dentro de `interfaz/`; los nuevos protocolos se incorporan mediante «Adjuntar protocolo o documento».
-
-No incluye cuentas de contratistas, autenticación, visor BIM ni firma electrónica avanzada. La validación de actas es un registro interno. En un despliegue con disco temporal, sustituir SQLite por almacenamiento persistente antes de usar datos reales.
+Las cargas consolidadas reemplazan los datos y comentarios del consolidado anterior; incluir en el nuevo Excel todo lo que se desea mantener. Los documentos adjuntos desde la plataforma se conservan en SQLite. No incluye autenticación ni firma electrónica avanzada. Para alojamiento con disco temporal, usar almacenamiento persistente antes de operar con información real.
 
 ## Verificación
 
-Comprobadas importación y validación del Excel, conservación de adjuntos/anotaciones, documento PDF vinculado, consulta de estados y documentos vinculados, exportaciones, cinco vistas y arrastre de las tres herramientas mediante DOM simulado. Logo y plano revisados mediante renderizado. La revisión visual final en el navegador de publicación queda pendiente.
-
-
-## Corrección V3
-Logo con texto convertido en trazos, en una línea y sin sustitución de tipografía. Hallazgos y No Conformidades es una vista de consulta de la información de Excel y de carga/descarga de documentos confeccionados externamente. Se retiraron los comentarios editables y las acciones de reparar, cerrar o reabrir hallazgos. El estado y la trazabilidad se actualizan mediante la planilla consolidada. Adjuntar documentos no cambia el estado. Los documentos adjuntos quedan asociados al ID del hallazgo y se conservan al importar Excel.
+Verificadas las cinco vistas mediante DOM simulado, vínculos entre lotes, ensayos e informes, rechazo de relaciones cruzadas, compatibilidad con datos anteriores y carga de documentos PDF. Revisadas visualmente las hojas nuevas y el logo. Pendiente revisión visual final en navegador de publicación.

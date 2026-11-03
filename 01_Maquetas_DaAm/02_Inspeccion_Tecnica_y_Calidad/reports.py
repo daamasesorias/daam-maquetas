@@ -48,6 +48,8 @@ def build_excel(data,cut,period):
         pd.DataFrame(ins).to_excel(writer,sheet_name='Inspecciones',index=False)
         pd.DataFrame(halls).to_excel(writer,sheet_name='Hallazgos',index=False)
         pd.DataFrame(data['approvals']).to_excel(writer,sheet_name='Validaciones',index=False)
+        pd.DataFrame(data.get('Materiales',[])).to_excel(writer,sheet_name='Materiales',index=False)
+        pd.DataFrame(data.get('Ensayos',[])).to_excel(writer,sheet_name='Ensayos',index=False)
         for s in writer.book.worksheets:
             s.freeze_panes='A2'
             for col in s.columns:s.column_dimensions[col[0].column_letter].width=min(65,max(16,max(len(str(c.value or '')) for c in col)+2))
