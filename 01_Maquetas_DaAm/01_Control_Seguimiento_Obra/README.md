@@ -1,43 +1,34 @@
-# DaAm · Control y Seguimiento de Obra — maqueta V2
+# DaAm · Control y Seguimiento de Obra — versión Excel
 
-Ejemplo de consulta de una sola obra, con datos ficticios. Incluye el logo aprobado «DaAm Plataformas · Control y Seguimiento de Obra». No requiere claves ni base de datos.
+Una obra de ejemplo. Las cinco hojas conservan el diseño aprobado y leen los datos desde `maestro_control_obra.xlsx`, junto a `app.py`. No hay datos de obra embebidos en JavaScript ni datos de respaldo que oculten errores del maestro.
 
-## Cinco hojas
+## Hojas del Excel
 
-1. **Resumen ejecutivo:** datos de obra y nueve tarjetas; sin curvas.
-2. **Programa de obra:** Gantt de todo el programa con filtros combinados por fechas, semanas, familia y estado; fechas originales y nuevas fechas; grupos desplegables.
-3. **Avance físico:** Curva S programada, real y forecast, y tabla de avance ponderado.
-4. **Costos y presupuesto:** Curva S de costos y tabla de presupuesto, costos al corte y proyección final.
-5. **KPIs:** indicadores al corte e histórico semanal; sin PPC ni CNC.
+- **Obra:** nombre, dirección, inicio y término programados, semanas totales, semana de control y monto contractual. Costos en millones de pesos chilenos, netos sin IVA.
+- **Partidas:** ID, familia, nombre, unidad, cantidad total, presupuesto de costo y fechas originales.
+- **Control_semanal:** un registro por semana e ID; cantidades programadas y reales acumuladas, costo real acumulado, costo pendiente estimado y fecha forecast de término.
+- **Reprogramaciones:** ID, semana de entrada en vigencia y nuevas fechas. El histórico anterior se conserva.
 
-## Actualizar el repositorio existente
+Los datos iniciales son ficticios y reproducen el ejemplo de 24 semanas anterior. Last Planner es otro ejemplo de 52 semanas. Ambos leen un Excel en la raíz, cada uno con las columnas correspondientes a su método de control.
 
-Extraer el ZIP y reemplazar el contenido del repositorio de la maqueta con el contenido de la carpeta `01_DaAm_Control_Obra`. Mantener la estructura: `app.py` en la raíz y `index.html`, `app.js`, `logo-control-obra.png` y `favicon.svg` dentro de `interfaz/`. Conservar también `.streamlit/config.toml` y `requirements.txt`.
+## Actualizar datos
 
-No cargar solo el ZIP a GitHub. No mezclar con la plataforma INGESEP de obras reales. En Streamlit usar `app.py` como archivo principal y Python 3.11 o superior.
+1. Editar el Excel conservando las hojas, encabezados e ID relacionados.
+2. Guardarlo con el mismo nombre y reemplazarlo en el repositorio.
+3. Actualizar la aplicación. Cada ejecución lee el archivo, sin caché de datos.
 
-## Ejecución local
+Cambiar datos no requiere editar JavaScript. No se utiliza XML en esta versión. El Excel es la fuente única para los datos de obra. Mantener un registro por partida y semana para todo el programa: el ejemplo incluye los 24 cortes. Al ampliar el programa, agregar los registros correspondientes. Las cantidades deben estar entre cero y el total, los costos no pueden ser negativos, y el forecast de una partida incompleta debe ser posterior al corte. Las divisiones sin denominador válido muestran «No aplica».
 
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-```
+La aplicación calcula ponderaciones, avances, desviaciones, CPI y proyecciones a partir del maestro. El forecast distribuye el remanente por partida hasta la fecha estimada indicada en el Excel; no calcula ruta crítica. El avance al corte y los totales de costo se concilian entre tablas, curvas y tarjetas. La clasificación de atraso usa el programa vigente, y las comparaciones de desempeño conservan la línea base.
 
-También se puede abrir `interfaz/index.html` directamente para consultar la maqueta sin Streamlit. Se deben conservar los archivos de esa carpeta juntos.
+## Publicar
 
-## Criterios de cálculo del ejemplo
+Reemplazar todo el contenido del repositorio de esta maqueta con el contenido de `01_DaAm_Control_Obra`. Deben quedar en la raíz `app.py`, `data_model.py`, `requirements.txt` y `maestro_control_obra.xlsx`; mantener `interfaz/` y `.streamlit/`. En Streamlit seleccionar `app.py`.
 
-- Obra ficticia: centro logístico en Hualpén, 18 partidas, seis familias, programa base de 24 semanas. Semana de jueves a miércoles.
-- El selector de control permite revisar S01 a S24. El calendario de la Gantt alcanza S28 para mostrar las reprogramaciones y proyecciones.
-- Monto contractual y presupuesto de costo se mantienen separados. Los montos se expresan en millones de pesos chilenos, netos sin IVA.
-- El avance físico se pondera por presupuesto de costo. La suma del avance ponderado coincide con el Resumen ejecutivo y el punto de la curva real en cada corte.
-- Costo final proyectado = costo real incurrido + costo pendiente estimado. No se confunde costo con pago.
-- Se mantiene la línea base para curvas y desempeño. La clasificación operativa de atraso usa el programa vigente a cada corte. Reprogramar no garantiza cumplimiento: una actividad puede volver a incumplir su nuevo programa.
-- La tarjeta de reprogramaciones cuenta cambios registrados en la semana; el filtro Reprogramadas incluye todas las partidas con reprogramación vigente a ese corte.
-- Una partida atrasada se cuenta una sola vez aunque tenga más de un incumplimiento. Las partidas activas y las retrasadas pueden superponerse.
-- No se desplazan automáticamente las fechas de actividades que no empiezan. Solo dos partidas tienen reprogramaciones explícitas en el ejemplo; el histórico anterior a ellas se conserva.
-- CPI = valor ganado / costo real; valor ganado = suma de presupuesto por porcentaje de avance físico. Divisiones sin denominador válido se muestran como «No aplica».
-- El forecast distribuye el remanente por partida hasta términos estimados del escenario; no es un cálculo de ruta crítica ni una predicción de IA. Es demostrativo, no una herramienta para decidir sobre una obra real.
-- Los datos se generan de forma reproducible dentro de `interfaz/app.js`. No hay edición, cargas de Excel, almacenamiento, usuarios ni conexión con fuentes reales.
+## Ejecutar
 
-Para integrar obras reales se requiere definir fuentes de datos, permisos, actualización y validación de programación y costos.
+`pip install -r requirements.txt`
+
+`streamlit run app.py`
+
+La aplicación requiere Streamlit para recibir los datos del Excel. Abrir directamente el HTML no carga el maestro. Si falta el archivo o contiene datos inválidos, se muestra un error en lugar de datos simulados.
