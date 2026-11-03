@@ -122,7 +122,7 @@ def line_chart(points,percent=False,config=None):
     svg+='</svg>'
     encoded=base64.b64encode(svg.encode()).decode()
     title='Evolución PPC con meta 85 por ciento' if percent else 'Evolución CNC semanal'
-    return f'<div class="scroll"><img style="width:100%;min-width:{width}px;display:block" alt="{title}" src="data:image/svg+xml;base64,{encoded}"></div>'
+    return f'<div class="scroll"><img style="width:{min(width,1000)}px;max-width:100%;height:auto;display:block;margin:0 auto" alt="{title}" src="data:image/svg+xml;base64,{encoded}"></div>'
 
 
 def current_metric(plan,week):
@@ -188,7 +188,7 @@ def comparison_cnc(plan,week,config=None):
     svg+='</svg>'
     svg=dated_week_text(svg,config) if config is not None else svg
     encoded=base64.b64encode(svg.encode()).decode()
-    out+=f'<div class="scroll"><img style="width:{width}px;max-width:none;display:block;margin:0 auto" alt="Columnas por causa y semana; causas recurrentes resaltadas" src="data:image/svg+xml;base64,{encoded}"></div>'
+    out+=f'<div class="scroll"><img style="width:{min(width,1000)}px;max-width:100%;height:auto;display:block;margin:0 auto" alt="Columnas por causa y semana; causas recurrentes resaltadas" src="data:image/svg+xml;base64,{encoded}"></div>'
     return out+'<p class="muted">Las causas recurrentes aparecen primero y resaltadas. En celular, deslice el gráfico horizontalmente para ver todas las causas. La semana de control refleja el último corte registrado y puede cambiar hasta el cierre.</p>'
 
 
