@@ -1,0 +1,110 @@
+{
+  "Obra": [
+    "Parametro",
+    "Valor"
+  ],
+  "Partidas": [
+    "ID",
+    "Nombre",
+    "Ubicacion",
+    "Familia",
+    "TiposRequeridos",
+    "RequiereEnsayo",
+    "EstadoDeclarado",
+    "Validador",
+    "FechaValidacion",
+    "DocumentoValidacion"
+  ],
+  "Protocolos": [
+    "ID",
+    "Partida",
+    "Fecha",
+    "Resultado",
+    "Responsable",
+    "Documento"
+  ],
+  "NoConformidades": [
+    "ID",
+    "Protocolo",
+    "Descripcion",
+    "Estado",
+    "Responsable",
+    "Fecha",
+    "Compromiso",
+    "EvidenciaInicial",
+    "EvidenciaReparacion",
+    "DocumentoCierre"
+  ],
+  "Inspecciones": [
+    "ID",
+    "Fecha",
+    "Inspector",
+    "Alcance",
+    "Documento"
+  ],
+  "Hallazgos": [
+    "ID",
+    "Inspeccion",
+    "Partida",
+    "Descripcion",
+    "Estado",
+    "Responsable",
+    "Fecha",
+    "Compromiso",
+    "EvidenciaInicial",
+    "EvidenciaReparacion",
+    "DocumentoCierre"
+  ],
+  "Materiales": [
+    "ID",
+    "Material",
+    "Proveedor",
+    "Lote",
+    "Recepcion"
+  ],
+  "UsosMaterial": [
+    "ID",
+    "Material",
+    "Partida",
+    "Elemento",
+    "Cantidad",
+    "Unidad",
+    "Fecha"
+  ],
+  "Ensayos": [
+    "ID",
+    "Material",
+    "Partida",
+    "Muestra",
+    "Tipo",
+    "Muestreo",
+    "Laboratorio",
+    "Resultado",
+    "Criterio",
+    "Estado",
+    "Informe"
+  ],
+  "Documentos": [
+    "ID",
+    "Nombre",
+    "Tipo",
+    "Revision",
+    "Fecha",
+    "Archivo"
+  ],
+  "Vinculos": [
+    "Documento",
+    "Entidad",
+    "Registro"
+  ],
+  "Evidencias": [
+    "ID",
+    "Titulo",
+    "Archivo"
+  ],
+  "AlcancesInspeccion": [
+    "ID",
+    "Inspeccion",
+    "Partida"
+  ]
+}
