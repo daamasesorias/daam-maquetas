@@ -1,5 +1,5 @@
 'use strict';
-const C=MasivaCore,$=s=>document.querySelector(s),names=['Resumen ejecutivo','Programación rítmica por vivienda','Mapa del proyecto','Detalle de vivienda','Avance por partidas por vivienda'];
+const C=MasivaCore,$=s=>document.querySelector(s),names=['Resumen ejecutivo','Programación rítmica','Mapa del proyecto','Detalle de vivienda','Avance por partidas por vivienda'];
 const palette=['#b8976a','#527da7','#28577d','#758ba0','#b58c49','#688d90','#8a7497','#cf885f','#6c966a'];
 const colors={'Sin iniciar':'#8b9bb0','En proceso':'#436f9b','Terminada':'#2b806b'};
 let data=null,page=0,map=null,state={week:null,sector:'Todos',stage:'Todas',type:'Todas',unit:'Todas',status:'Todos',view:'Estado',program:'Vigente y línea base',from:'',to:''},selected='V-001';
@@ -15,15 +15,15 @@ const pair=(title,plan,real,hint)=>`<div class="card"><div class="label">${title
 function table(headers,rows,footer=''){return `<div class="tablewrap"><table><thead><tr>${headers.map(h=>`<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(r=>`<tr>${r.map(v=>`<td>${v}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${headers.length}" class="empty">Sin viviendas para estos filtros.</td></tr>`}</tbody>${footer}</table></div>`;}
 function send(type,extra={}){window.parent.postMessage({isStreamlitMessage:true,type,...extra},'*')}
 function resize(){send('streamlit:setFrameHeight',{height:Math.ceil(document.documentElement.getBoundingClientRect().height)})}
-function filtered(week=state.week){return C.snapshot(data,Number(week)).filter(u=>(state.sector==='Todos'||u.Sector===state.sector)&&(state.stage==='Todas'||u.Etapa===state.stage)&&(state.type==='Todas'||u.Tipologia===state.type)&&(state.unit==='Todas'||u.ID===state.unit)&&(state.status==='Todos'||state.status===u.state||state.status==='Atrasadas'&&u.late||state.status==='Con sobrecosto'&&u.eac>u.budget+.01));}
+function filtered(week=state.week){return C.snapshot(data,Number(week)).filter(u=>(page===4||state.sector==='Todos'||u.Sector===state.sector)&&(state.stage==='Todas'||u.Etapa===state.stage)&&(state.type==='Todas'||u.Tipologia===state.type)&&(state.unit==='Todas'||u.ID===state.unit)&&(state.status==='Todos'||state.status===u.state||state.status==='Atrasadas'&&u.late||state.status==='Con sobrecosto'&&u.eac>u.budget+.01));}
 function option(label,key,options){const el=document.createElement('label');el.textContent=label;const s=document.createElement('select');s.id=key;s.setAttribute('aria-label',label);options.forEach(([value,text])=>{const o=document.createElement('option');o.value=value;o.textContent=text;o.selected=String(value)===String(state[key]);s.appendChild(o)});s.onchange=()=>{state[key]=s.value;if(key==='sector'||key==='stage'||key==='type')state.unit='Todas';render()};el.appendChild(s);$('#filters').appendChild(el);}
 function filters(){
  $('#filters').innerHTML='';option('Semana de control','week',data.weeks.map(w=>[w,'Semana '+w]));
  if(page===0)return;
- option('Sector','sector',[['Todos','Todos'],...[...new Set(data.Viviendas.map(u=>u.Sector))].map(x=>[x,x])]);
+ if(page!==4)option('Sector','sector',[['Todos','Todos'],...[...new Set(data.Viviendas.map(u=>u.Sector))].map(x=>[x,x])]);
  option('Etapa','stage',[['Todas','Todas'],...[...new Set(data.Viviendas.map(u=>u.Etapa))].map(x=>[x,x])]);
  option('Tipología','type',[['Todas','Todas'],...data.Tipologias.map(t=>[t.ID,t.Nombre])]);
- if(page!==3)option('Vivienda','unit',[['Todas','Todas'],...data.Viviendas.filter(u=>(state.sector==='Todos'||u.Sector===state.sector)&&(state.stage==='Todas'||u.Etapa===state.stage)&&(state.type==='Todas'||u.Tipologia===state.type)).map(u=>[u.ID,u.ID])]);
+ if(page!==3)option('Vivienda','unit',[['Todas','Todas'],...data.Viviendas.filter(u=>(page===4||state.sector==='Todos'||u.Sector===state.sector)&&(state.stage==='Todas'||u.Etapa===state.stage)&&(state.type==='Todas'||u.Tipologia===state.type)).map(u=>[u.ID,u.ID])]);
  if(page===2){option('Estado / alerta','status',['Todos','Sin iniciar','En proceso','Terminada','Atrasadas','Con sobrecosto'].map(v=>[v,v]));option('Ver por','view',['Estado','Atraso','Sobrecosto'].map(v=>[v,v]));}
  if(page===1){option('Programación','program',['Vigente y línea base','Línea base'].map(v=>[v,v]));for(const [label,key] of [['Desde','from'],['Hasta','to']]){const l=document.createElement('label');l.textContent=label;const input=document.createElement('input');input.type='date';input.id=key;input.value=state[key];input.onchange=()=>{state[key]=input.value;render()};l.appendChild(input);$('#filters').appendChild(l)}}
 }
@@ -47,8 +47,8 @@ function gantt(units){
  if(!Number.isFinite(from)||!Number.isFinite(to)||to<from)return panel('Programación rítmica','<p>La fecha Hasta debe ser igual o posterior a Desde.</p>');
  const weeks=Math.ceil((to-from+1)/7),width=weeks*48,px=48/7,cut=C.day(data.obra.Inicio_programado)+state.week*7-1;
  let rows='',group='';
- for(const u of [...units].sort((a,b)=>a.Sector.localeCompare(b.Sector)||a.Tipologia.localeCompare(b.Tipologia)||a.baseStart-b.baseStart)){
-  if(u.Sector+' / '+u.Tipologia!==group){group=u.Sector+' / '+u.Tipologia;rows+=`<tr class="group"><td colspan="2">${esc(group)} · ${u.Tipologia==='A'?'1 piso':'2 pisos'}</td></tr>`}
+ for(const u of [...units].sort((a,b)=>a.Tipologia.localeCompare(b.Tipologia)||a.baseStart-b.baseStart)){
+  if(u.Tipologia!==group){group=u.Tipologia;rows+=`<tr class="group"><td colspan="2">${u.Tipologia==='A'?esc(data.obra.Equipo_Tipo_A):esc(data.obra.Equipo_Tipo_B)}</td></tr>`}
   let bars='',lanes=[];
   for(const t of [...u.tasks].sort((a,b)=>(state.program==='Línea base'?C.day(a.Inicio_base):a.start)-(state.program==='Línea base'?C.day(b.Inicio_base):b.start))){
    const s=state.program==='Línea base'?C.day(t.Inicio_base):t.start,e=state.program==='Línea base'?C.day(t.Fin_base):t.end;
@@ -64,9 +64,14 @@ function gantt(units){
   rows+=`<tr><td class="unitcell ${u.late?'lateunit':''}">${button(u.ID)}<div class="hint">${u.state} · ${pct(u.real)}${u.late?' · Atrasada':''}</div></td><td class="timecell"><div class="rowtrack" style="width:${width}px;height:${Math.max(79,lanes.length*16+14)}px">${bars}${cutline}</div></td></tr>`;
  }
  const head=Array.from({length:weeks},(_,i)=>{const d=from+i*7;return `<span>S${Math.floor((d-C.day(data.obra.Inicio_programado))/7)+1}<br>${date(d).slice(0,5)}</span>`}).join('');
- return panel('Secuencia de construcción por vivienda',`<div class="legend">${data.Programa.slice(0,9).map((p,i)=>`<span><i class="swatch" style="background:${palette[i]}"></i>${esc(p.Nombre)}</span>`).join('')}</div><p class="note">Segmentos por partida; relleno oscuro = avance real al corte. Línea gris inferior = línea base; línea naranja vertical = corte. Pase el cursor por un segmento para consultar fechas.</p><div class="ganttwrap"><table class="rhythm"><thead><tr><th class="unitcell">Vivienda / avance</th><th class="timecell"><div class="week-head" style="width:${width}px">${head}</div></th></tr></thead><tbody>${rows||'<tr><td class="empty">Sin viviendas para estos filtros.</td></tr>'}</tbody></table></div>`);
+ return panel('Continuidad de los equipos de construcción',`<div class="legend">${data.Programa.slice(0,9).map((p,i)=>`<span><i class="swatch" style="background:${palette[i]}"></i>${esc(p.Nombre)}</span>`).join('')}</div><p class="note">Dos equipos que parten simultáneamente: uno para viviendas de un piso y otro para dos pisos. Cada especialidad pasa a la siguiente vivienda al completar su ciclo, con un desfase de 7 y 9 días, respectivamente.</p><p class="note">Segmentos por partida; relleno oscuro = avance real al corte. Línea gris inferior = línea base; línea naranja vertical = corte. Pase el cursor por un segmento para consultar fechas.</p><div class="ganttwrap"><table class="rhythm"><thead><tr><th class="unitcell">Vivienda / avance</th><th class="timecell"><div class="week-head" style="width:${width}px">${head}</div></th></tr></thead><tbody>${rows||'<tr><td class="empty">Sin viviendas para estos filtros.</td></tr>'}</tbody></table></div>`);
 }
 function mapColor(u){return state.view==='Atraso'?(u.late?'#bb3e45':'#2b806b'):state.view==='Sobrecosto'?(u.eac>u.budget+.01?'#bb3e45':'#2b806b'):colors[u.state]}
+function houseShape(u){
+ const type=data.Tipologias.find(t=>t.ID===u.Tipologia),two=Number(type.Pisos)===2,c=mapColor(u),stroke=state.view==='Estado'&&u.late?'#ee5560':'white';
+ return `<path d="M3 ${two?16:25}L22 ${two?2:11}L41 ${two?16:25}H37V44H7V${two?16:25}Z" fill="${c}" stroke="${stroke}" stroke-width="2.5" stroke-linejoin="round"/>${two?'<path d="M12 17H18V23H12ZM26 17H32V23H26Z" fill="white" opacity=".9"/>':''}<text x="22" y="37" fill="white" font-family="Arial,sans-serif" font-size="11" font-weight="bold" text-anchor="middle">${esc(u.ID.slice(2))}</text>`;
+}
+function houseIcon(u){return `<svg width="44" height="52" viewBox="0 0 44 52" role="img" aria-label="${esc(u.ID)} · ${data.Tipologias.find(t=>t.ID===u.Tipologia).Pisos} piso(s)">${houseShape(u)}</svg>`;}
 function mapPage(units){
  const legend=state.view==='Estado'?Object.entries(colors):state.view==='Atraso'?[['Con atraso','#bb3e45'],['Sin atraso','#2b806b']]:[['Con sobrecosto','#bb3e45'],['Dentro del presupuesto','#2b806b']];
  return panel('Ubicación de las viviendas',`<div class="legend">${legend.map(([s,c])=>`<span><i class="swatch" style="background:${c}"></i>${s}</span>`).join('')}</div><div id="map"></div><p class="map-note">36 puntos originales conservados alrededor de −36,780244 / −73,0720812, Talcahuano. Viviendas ficticias alternadas: A de un piso y B de dos pisos. Seleccione una vivienda. La distribución no representa un loteo real.</p>`)+`<div id="map-selection">${panel('Seleccione una vivienda','<p class="muted">Seleccione un punto del mapa para consultar sus datos y abrir el detalle.</p>')}</div>`;
@@ -76,13 +81,13 @@ function drawMap(units){
  function select(u){$('#map-selection').innerHTML=mapSelection(u);bindUnits();resize()}
  if(!window.L){
   const minlat=-36.780244-.0005,maxlat=-36.780244+.0005,minlng=-73.0720812-.0006,maxlng=-73.0720812+.0006;
-  $('#map').style.height='auto';$('#map').innerHTML=`<svg class="map-fallback" viewBox="0 0 800 500" role="img" aria-label="Distribución de viviendas por coordenadas"><text x="20" y="28" fill="#667b92" font-size="14">Vista por coordenadas · cartografía sin conexión</text>${units.map(u=>{const x=50+(u.Longitud-minlng)/(maxlng-minlng)*700,y=460-(u.Latitud-minlat)/(maxlat-minlat)*400;return `<a data-map-unit="${esc(u.ID)}" tabindex="0" role="button" aria-label="Vivienda ${esc(u.ID)}"><rect x="${x-22}" y="${y-15}" width="44" height="30" rx="5" fill="${mapColor(u)}"/><text x="${x}" y="${y+4}" text-anchor="middle" font-size="11" fill="white">${esc(u.ID.slice(2))}</text></a>`}).join('')}</svg>`;
+  $('#map').style.height='auto';$('#map').innerHTML=`<svg class="map-fallback" viewBox="0 0 800 500" role="img" aria-label="Distribución de viviendas por coordenadas"><text x="20" y="28" fill="#667b92" font-size="14">Vista por coordenadas · cartografía sin conexión</text>${units.map(u=>{const x=50+(u.Longitud-minlng)/(maxlng-minlng)*700,y=460-(u.Latitud-minlat)/(maxlat-minlat)*400;return `<a data-map-unit="${esc(u.ID)}" tabindex="0" role="button" aria-label="Vivienda ${esc(u.ID)}"><g transform="translate(${x-22} ${y-38})">${houseShape(u)}</g></a>`}).join('')}</svg>`;
   document.querySelectorAll('[data-map-unit]').forEach(e=>{e.onclick=()=>select(units.find(u=>u.ID===e.dataset.mapUnit));e.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();e.onclick()}}});resize();return;
  }
  map=L.map('map',{scrollWheelZoom:false}).setView([-36.780244,-73.0720812],18);
  const tiles=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri, Maxar, Earthstar Geographics'}).addTo(map);let warned=false;
  tiles.on('tileerror',()=>{if(!warned){warned=true;$('#map-selection').insertAdjacentHTML('afterbegin','<p class="alert">Fondo satelital no disponible; los puntos conservan sus coordenadas y selección.</p>');resize()}});
- units.forEach(u=>{const title=`${u.ID} · Tipo ${u.Tipologia} · ${u.state}${u.late?' · Atrasada':''}`,icon=L.divIcon({className:'unit-marker',html:`<div class="house-pin ${state.view==='Estado'&&u.late?'alert-pin':''}" style="background:${mapColor(u)}">${esc(u.ID.slice(2))}</div>`,iconSize:[35,27],iconAnchor:[17,14]});const marker=L.marker([u.Latitud,u.Longitud],{icon,title}).addTo(map);marker.bindTooltip(esc(title));marker.on('click',()=>select(u))});
+ units.forEach(u=>{const title=`${u.ID} · Tipo ${u.Tipologia} · ${u.state}${u.late?' · Atrasada':''}`,icon=L.divIcon({className:'unit-marker',html:houseIcon(u),iconSize:[44,52],iconAnchor:[22,44]});const marker=L.marker([u.Latitud,u.Longitud],{icon,title}).addTo(map);marker.bindTooltip(esc(title));marker.on('click',()=>select(u))});
  if(units.length)map.fitBounds(units.map(u=>[u.Latitud,u.Longitud]),{padding:[40,40],maxZoom:19});
  setTimeout(()=>map&&map.invalidateSize(),50);
 }
@@ -102,7 +107,7 @@ function tasksTable(u){return table(['Partida','Inicio base','Fin base','Inicio 
 function parts(units){
  const a=C.aggregate(units);let html='<div class="cards three">'+pair('Avance del alcance seleccionado',pct(a.base),pct(a.real),'Ponderación entre viviendas por presupuesto de costo')+card('Desviación',num((a.real-a.base)*100)+' pp','Comparación con línea base',a.real<a.base-.0001)+card('Viviendas seleccionadas',units.length,'Nueve partidas por vivienda')+'</div>';
  if(!units.length)return html+panel('Avance por partidas','<p>Sin viviendas para estos filtros.</p>');
- for(const u of units)html+=panel(button(u.ID)+' · Tipo '+esc(u.Tipologia)+' · '+esc(u.Sector),tasksTable(u));
+ for(const u of units)html+=panel(button(u.ID)+' · Tipo '+esc(u.Tipologia)+' · '+esc(u.Etapa),tasksTable(u));
  html+='<p class="note">Aporte al total de cada vivienda = peso de la partida × avance real. Los nueve pesos suman 100 %. El avance del conjunto pondera cada vivienda por su presupuesto, para considerar las diferentes tipologías. Las partidas reprogramadas se evalúan por sus fechas vigentes; el programado mostrado conserva la línea base.</p>';
  return html;
 }
