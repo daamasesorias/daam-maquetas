@@ -15,6 +15,14 @@ try:
     seed=load_master(ROOT/'maestro_inspeccion_calidad.xlsx')
     db=ROOT/'registros_calidad.sqlite3'
     data=read_state(seed,db)
+    # Respaldos integrados para las dos evidencias que no cargaban en el ejemplo.
+    data['embeddedEvidence']={}
+    for eid in ('F05','F07'):
+        evidence=next((e for e in data['Evidencias'] if e['ID']==eid),None)
+        if evidence:
+            path=ROOT/'interfaz'/evidence['Archivo']
+            if path.is_file():data['embeddedEvidence'][eid]='data:image/png;base64,'+base64.b64encode(path.read_bytes()).decode()
+
 except Exception as error:
     st.error(f'No fue posible cargar la obra: {error}');st.stop()
 result=st.session_state.get('result',{})

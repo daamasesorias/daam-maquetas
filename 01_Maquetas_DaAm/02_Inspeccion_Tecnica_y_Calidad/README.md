@@ -27,3 +27,6 @@ Las cargas consolidadas reemplazan los datos y comentarios del consolidado anter
 ## Verificación
 
 Verificadas las cinco vistas mediante DOM simulado, vínculos entre lotes, ensayos e informes, rechazo de relaciones cruzadas, compatibilidad con datos anteriores y carga de documentos PDF. Revisadas visualmente las hojas nuevas y el logo. Pendiente revisión visual final en navegador de publicación.
+
+
+V6: carga de documentos de hallazgos en la parte superior; una sola ficha por hallazgo, distribuidas en dos columnas; documentos vinculados en dos columnas dentro de cada ficha. En pantallas angostas se adapta a una columna. Se incluyó respaldo integrado de las evidencias F05 y F07 para evitar espacios vacíos por carga de recursos.
