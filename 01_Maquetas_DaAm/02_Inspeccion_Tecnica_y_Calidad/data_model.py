@@ -114,26 +114,11 @@ def apply_action(seed,db,action):
                 if image.format not in ('PNG','JPEG'):raise ValueError('Adjunte PDF, PNG o JPEG.')
             inspection=next((i for i in d['Inspecciones'] if i['ID']==action.get('inspection')),None)
             if not inspection:raise ValueError('Inspección no encontrada.')
+            finding=action.get('finding','')
+            if finding and not any(h['ID']==finding and h['Inspeccion']==inspection['ID'] for h in d['Hallazgos']):raise ValueError('Hallazgo e inspección no coinciden.')
             uid='DOC-'+uuid.uuid4().hex[:8];o['files'][uid]=encoded
-            o.setdefault('documents',[]).append({'ID':uid,'Nombre':clean_text(action.get('name'),150),'Categoria':action.get('category') if action.get('category') in ('Protocolo','Certificado','Acta','Otros') else 'Otros','Revision':'Registro ITO','Fecha':today,'Ubicacion':inspection['Ubicacion'],'Inspeccion':inspection['ID'],'Hallazgo':'','Archivo':uid,'Indicacion':'Documento adjuntado por la ITO.'})
+            o.setdefault('documents',[]).append({'ID':uid,'Nombre':clean_text(action.get('name'),150),'Categoria':action.get('category') if action.get('category') in ('Protocolo','Certificado','Acta','Otros','No conformidad','Observación','Respuesta','Cierre de hallazgo') else 'Otros','Revision':'Registro ITO','Fecha':today,'Ubicacion':inspection['Ubicacion'],'Inspeccion':inspection['ID'],'Hallazgo':finding,'Archivo':uid,'Indicacion':'Documento adjuntado por la ITO.'})
             msg='Documento adjuntado y vinculado a '+inspection['ID']+'.'
-        elif kind in ('comment','repair','close','reopen'):
-            h=next((h for h in d['Hallazgos'] if h['ID']==action.get('finding')),None)
-            if not h:raise ValueError('Hallazgo no encontrado.')
-            text=clean_text(action.get('text'));new=copy.deepcopy(h)
-            if not text:raise ValueError('Ingrese un comentario de trazabilidad.')
-            if kind=='repair':
-                if h['Estado']!='Abierta':raise ValueError('Registre la reparación sobre un hallazgo abierto.')
-                photo=store_photo(action.get('photo'),o)
-                if not photo:raise ValueError('Adjunte evidencia de reparación.')
-                new.update(Estado='En revisión',Foto_reparacion=photo)
-            if kind=='close':
-                if role!='ITO' or h['Estado']!='En revisión' or not h['Foto_reparacion']:raise ValueError('Solo ITO puede cerrar un hallazgo en revisión con evidencia.')
-                new.update(Estado='Cerrada',Cierre=today)
-            if kind=='reopen':
-                if role!='ITO' or h['Estado']=='Abierta':raise ValueError('Solo ITO puede devolver o reabrir un hallazgo.')
-                new.update(Estado='Abierta',Cierre='')
-            o['halls'][h['ID']]=new;o['comments'].append({'ID':'C-'+uuid.uuid4().hex[:8],'Hallazgo':h['ID'],'Fecha':now,'Autor':author,'Rol':role,'Texto':text,'Accion':kind});msg='Registro actualizado.'
         elif kind=='mark':
             if role!='ITO':raise ValueError('Solo ITO puede guardar anotaciones.')
             plan=next((p for p in d['Planos'] if p['ID']==action.get('plan')),None)
