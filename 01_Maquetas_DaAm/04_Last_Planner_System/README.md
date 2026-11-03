@@ -7,7 +7,7 @@ Cinco hojas: Resumen LPS, Programa resumen a 6 semanas, Lookahead y restriccione
 Acceso público de consulta, sin contraseña ni sesiones. No admite cambios ni escritura de datos desde el navegador. Conserva filtros y exportaciones del modelo base.
 
 ## Publicar
-Crear un repositorio independiente para esta maqueta. Subir el contenido de esta carpeta a la raíz, conservando `assets/`, `.streamlit/` y `maestro_demo.xlsx`. En Streamlit seleccionar `app.py`. No reemplazar el repositorio de las obras reales.
+Crear un repositorio independiente para esta maqueta. Subir el contenido de esta carpeta a la raíz, conservando `interfaz/`, `.streamlit/` y `maestro_demo.xlsx`. En Streamlit seleccionar `app.py`. No reemplazar el repositorio de las obras reales.
 
 ## Ejecutar
 `pip install -r requirements.txt`
@@ -15,3 +15,9 @@ Crear un repositorio independiente para esta maqueta. Subir el contenido de esta
 `streamlit run app.py`
 
 El maestro ficticio está en `maestro_demo.xlsx`. El inicio de la semana y el período de control se definen en su configuración. Los resultados de PPC se basan en la columna Cumplida, no en inferencias de los porcentajes. La semana abierta se identifica como preliminar.
+
+## Presentación DaAm
+
+La interfaz usa el marco, menú, tarjetas, colores y tipografía de Control y Seguimiento de Obra. La estructura de datos y cálculos LPS se conserva. Las semanas y fechas de las curvas se muestran en dos líneas, con desplazamiento horizontal cuando se requiere. El Excel maestro permanece en la raíz.
+
+El único logo se encuentra en `interfaz/logo-last-planner.png`. No se utiliza una carpeta `assets`.

@@ -100,26 +100,29 @@ def hide_columns(df):
 
 def line_chart(points,percent=False,config=None):
     if not points:return '<p class="empty">Sin semanas cerradas disponibles.</p>'
+    width=max(800,120+88*len(points));left=75;right=width-45;bottom=230;height=320
     maximum=100 if percent else max(1,max(v for _,v in points))
-    def xy(w,v):return 70+(w-points[0][0])*660/max(1,points[-1][0]-points[0][0]),230-v/maximum*180
-    svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 280" style="font-family:Arial" role="img">'
-    for i in range(5):
-        v=maximum*i/4;y=230-v/maximum*180
-        svg+=f'<line x1="60" y1="{y}" x2="750" y2="{y}" stroke="#e2eaf4"/><text x="50" y="{y+5}" text-anchor="end" fill="#6780a3" font-size="13">{v:g}{"%" if percent else ""}</text>'
+    def xy(w,v):return left+(w-points[0][0])*(right-left)/max(1,points[-1][0]-points[0][0]),bottom-v/maximum*180
+    svg=f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" style="font-family:Arial" role="img">'
+    ticks=[0,25,50,75,100] if percent else list(range(int(maximum)+1)) if maximum<=8 else [maximum*i/4 for i in range(5)]
+    for v in ticks:
+        y=bottom-v/maximum*180
+        svg+=f'<line x1="{left}" y1="{y}" x2="{right}" y2="{y}" stroke="#e2eaf4"/><text x="{left-15}" y="{y+5}" text-anchor="end" fill="#6780a3" font-size="13">{v:g}{"%" if percent else ""}</text>'
     if percent:
-        y=230-85/100*180
-        svg+=f'<line x1="60" y1="{y}" x2="750" y2="{y}" stroke="#d23a3a" stroke-width="2" stroke-dasharray="7 5"/><text x="745" y="{y-8}" text-anchor="end" fill="#d23a3a" font-size="11">Meta 85 %</text>'
+        y=bottom-85/100*180
+        svg+=f'<line x1="{left}" y1="{y}" x2="{right}" y2="{y}" stroke="#d23a3a" stroke-width="2" stroke-dasharray="7 5"/><text x="{right}" y="{y-8}" text-anchor="end" fill="#d23a3a" font-size="11">Meta 85 %</text>'
     for (wa,va),(wb,vb) in zip(points,points[1:]):
         if wb==wa+1:
             xa,ya=xy(wa,va);xb,yb=xy(wb,vb)
             svg+=f'<line x1="{xa}" y1="{ya}" x2="{xb}" y2="{yb}" stroke="#294e78" stroke-width="3"/>'
     for w,v in points:
-        x,y=xy(w,v);label=f'{v:.1f} %' if percent else str(v)
-        svg+=f'<circle cx="{x}" cy="{y}" r="5" fill="#294e78"/><text x="{x}" y="{y-12}" text-anchor="middle" fill="#173960" font-size="11">{label}</text><text x="{x}" y="255" text-anchor="middle" fill="#6780a3" font-size="11">S{w}</text>'
+        x,y=xy(w,v);label=f'{v:.1f} %' if percent else f'{v:g}'
+        date_label=week_start(config,w).strftime('%d/%m/%Y') if config is not None else ''
+        svg+=f'<circle cx="{x}" cy="{y}" r="5" fill="#294e78"/><text x="{x}" y="{y-12}" text-anchor="middle" fill="#173960" font-size="11">{label}</text><text x="{x}" y="258" text-anchor="middle" fill="#173960" font-size="12" font-weight="bold">S{w}</text><text x="{x}" y="279" text-anchor="middle" fill="#6780a3" font-size="11">{date_label}</text>'
     svg+='</svg>'
-    svg=dated_week_text(svg,config) if config is not None else svg
     encoded=base64.b64encode(svg.encode()).decode()
-    return f'<img style="width:100%;max-width:900px;display:block;margin:0 auto" alt="{"Evolución PPC con meta 85 por ciento" if percent else "Evolución CNC semanal"}" src="data:image/svg+xml;base64,{encoded}">'
+    title='Evolución PPC con meta 85 por ciento' if percent else 'Evolución CNC semanal'
+    return f'<div class="scroll"><img style="width:100%;min-width:{width}px;display:block" alt="{title}" src="data:image/svg+xml;base64,{encoded}"></div>'
 
 
 def current_metric(plan,week):

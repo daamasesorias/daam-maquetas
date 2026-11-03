@@ -1,128 +1,72 @@
 from pathlib import Path
-import os,hmac,base64
-from html import escape
+import base64
+import re
 import streamlit as st
-from data_model import load,tasks_in_week,pending_habilitantes,week_label
-from views import CSS,page,heading,table,hide_columns
-from exports import download_table,render_downloads
+import streamlit.components.v1 as components
+from data_model import load,tasks_in_week,pending_habilitantes,week_label,week_end
+from views import page,table,hide_columns
+from exports import VisibleTables,excel_bytes,graph_png
 
-project_name='Edificio de oficinas demostrativo DaAm'
 root=Path(__file__).parent
-selected=root/'maestro_demo.xlsx'
-st.set_page_config(page_title='DaAm · Control Last Planner System',page_icon='🔷',layout='wide')
-brand_image=base64.b64encode((root/'assets'/'logo_daam_last_planner.png').read_bytes()).decode()
-brand=f'<div class="brand-block"><img src="data:image/png;base64,{brand_image}" alt="DaAm Plataformas · Control Last Planner System" style="width:100%;display:block"><div style="color:white;font-size:16px;font-weight:600;margin-top:14px">{escape(project_name)}</div></div>' 
-st.markdown('''<style>
-@media(max-width:768px){[data-testid="stHorizontalBlock"]{flex-wrap:wrap!important}[data-testid="stHorizontalBlock"]>[data-testid="stColumn"]{width:100%!important;flex:1 1 100%!important;min-width:100%!important}}
-[data-testid="stSidebar"]{background:#0e294b}
-[data-testid="stSidebar"] h2{color:white;font-size:32px!important;margin-bottom:0}
-[data-testid="stSidebar"] [data-testid="stCaptionContainer"]{color:#c4d4e9;font-size:16px;line-height:1.5}
-[data-testid="stSidebar"] label{color:white;font-size:16px}
-[data-testid="stSidebar"] [data-baseweb="select"] *{color:#173960!important}
-[data-testid="stSidebar"] button{font-size:16px;text-align:center;min-height:44px}
-[data-testid="stSidebar"] button[kind="secondary"]{background:#2b5078;color:white;border:0}
-[data-testid="stSidebar"] button[kind="secondary"] p{color:white}
-[data-testid="stSidebar"] button[kind="primary"]{background:#436f9b;color:white;border:0}
-[data-testid="stSidebar"] .brand-block{margin:0 0 22px;font-family:Arial,sans-serif}
-[data-testid="stSidebar"] .brand-name{color:#ffffff;font-size:27px;font-weight:700;line-height:1.2;letter-spacing:-.5px}
-[data-testid="stSidebar"] .brand-subtitle{color:#d5e1ef;font-size:15px;margin-top:7px}
-[data-testid="stSidebar"] .brand-service{color:#ffffff;font-size:16px;font-weight:600;line-height:1.45;margin-top:22px;padding-top:18px;border-top:1px solid #345271}
-[data-testid="stSidebar"] .brand-system{color:#d5e1ef;font-size:14px;margin-top:5px}
-[data-testid="stSidebar"] .brand-client{color:#ffffff;font-size:23px;font-weight:700;letter-spacing:1px;margin-top:12px}
-.stApp{background:#f4f7fb}
-[data-testid="stMainBlockContainer"]{padding-top:1.5rem;max-width:none}
-.st-key-mobile_navigation{display:none}
-@media(max-width:768px){
-[data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"]{display:none!important}
-.st-key-mobile_navigation{display:block;background:#0e294b;border:0;border-radius:10px;padding:20px 16px;margin-bottom:20px}
-.st-key-mobile_navigation .brand-block{margin-bottom:20px;font-family:Arial,sans-serif}
-.st-key-mobile_navigation .brand-name{color:white;font-size:27px;font-weight:700;line-height:1.2}
-.st-key-mobile_navigation .brand-subtitle{color:#d5e1ef;font-size:15px;margin-top:7px}
-.st-key-mobile_navigation .brand-service{color:white;font-size:16px;font-weight:600;margin-top:18px;padding-top:16px;border-top:1px solid #345271}
-.st-key-mobile_navigation .brand-client{color:white;font-size:23px;font-weight:700;letter-spacing:1px;margin-top:10px}
-.st-key-mobile_navigation label p{color:white!important}
-.st-key-mobile_navigation [data-baseweb="select"]{background:#ffffff;border-radius:8px}
-.st-key-mobile_navigation [data-baseweb="select"] *{color:#173960!important}
-.st-key-mobile_navigation [data-testid="stExpander"]{background:#0e294b!important;border:0!important;border-radius:8px;margin-top:24px!important}
-.st-key-mobile_navigation [data-testid="stExpander"] details,.st-key-mobile_navigation [data-testid="stExpander"] summary{background:#2b5078!important;border-radius:8px}
-.st-key-mobile_navigation [data-testid="stExpanderDetails"]{background:#0e294b!important;padding:16px 0!important}
-.st-key-mobile_navigation [data-testid="stExpander"] summary{min-height:48px}
-.st-key-mobile_navigation [data-testid="stExpander"] summary p,.st-key-mobile_navigation [data-testid="stExpander"] summary svg{color:white!important}
-.st-key-mobile_navigation button[kind="secondary"]{background:#2b5078!important;color:white!important;border:0!important}
-.st-key-mobile_navigation button[kind="primary"]{background:#436f9b!important;color:white!important;border:0!important}
-.st-key-mobile_navigation button p{color:white!important}
-html,body{overscroll-behavior-y:contain}
-}
-@media(max-width:768px){[data-testid="stMainBlockContainer"]{padding-top:3.75rem!important;padding-left:.65rem;padding-right:.65rem}}
-</style>''',unsafe_allow_html=True)
-st.caption('EJEMPLO DEMOSTRATIVO · Una obra ficticia · Programa maestro de 52 semanas')
-if not selected.is_file():
-    st.error('No se encontró el maestro de esta obra.');st.stop()
-routes=['Resumen LPS','Programa resumen a 6 semanas','Lookahead y restricciones','Plan semanal','PPC y CNC']
-if st.session_state.get('route')=='Programa de seis semanas':st.session_state.route='Programa resumen a 6 semanas'
-st.session_state.setdefault('route',routes[0])
-def navigation(prefix):
-    for label in routes:
-        if st.button(label,key=prefix+'_'+label,type='primary' if st.session_state.route==label else 'secondary',use_container_width=True):
-            st.session_state.route=label;st.rerun()
-with st.sidebar:
-    st.markdown(brand,unsafe_allow_html=True)
-    navigation('desktop')
-with st.container(key='mobile_navigation'):
-    st.markdown(brand,unsafe_allow_html=True)
-    with st.expander('☰ Menú',expanded=False):navigation('mobile')
-route=st.session_state.route
-try:config,sheets,issues=load(selected)
-except Exception as exc:st.error(f'No fue posible leer el Maestro: {exc}');st.stop()
-if config.get('Sin_Datos'):
-    st.title(config.get('Proyecto','Proyecto'))
-    st.info('Esta obra aún no tiene información cargada.')
-    st.stop()
+st.set_page_config(page_title='DaAm · Control Last Planner System',page_icon='🔷',layout='wide',initial_sidebar_state='collapsed')
+st.markdown('''<style>.block-container{padding:0!important;max-width:100%!important}header[data-testid="stHeader"]{display:none}[data-testid="stAppViewContainer"]{background:#eaf0f7}</style>''',unsafe_allow_html=True)
+try:c,s,issues=load(root/'maestro_demo.xlsx')
+except Exception as exc:st.error(f'No fue posible leer el maestro: {exc}');st.stop()
 for issue in issues:st.warning(issue)
-routes=['Resumen LPS','Programa resumen a 6 semanas','Lookahead y restricciones','Plan semanal','PPC y CNC'];n=routes.index(route)
-st.html(f'<style>{CSS}</style><div>{heading(n,config)}</div>')
+if c.get('Sin_Datos'):st.info('Complete el Excel maestro.');st.stop()
+state=st.session_state.setdefault('demo_ui',{'page':0,'execution':'13','family':'Todas','owner':'Todos','task':'Todas','hab_scope':'Pendientes de liberación','hab_owner':'Todos','hab_state':'Todos','hab_kind':'Todos','plan_week':'12'})
+names=['Resumen LPS','Programa resumen a 6 semanas','Lookahead y restricciones','Plan semanal','PPC y CNC']
+n=int(state['page']);filters=[]
+def select(key,label,values):
+    options=[{'value':str(x[0]),'label':str(x[1])} if isinstance(x,tuple) else {'value':str(x),'label':str(x)} for x in values]
+    if str(state.get(key)) not in [o['value'] for o in options]:state[key]=options[0]['value']
+    filters.append({'key':key,'label':label,'options':options})
 if n==2:
-    look=sheets['lookahead'];hab=sheets['habilitantes']
-    control=config['Semana_Control']
-    with st.container(border=True):
-        st.subheader('1. Tareas del lookahead')
-        filter_row=st.columns(3)
-        selected_week=filter_row[0].selectbox('Semana de ejecución de la tarea',['Todas']+list(range(control,control+6)),index=2,format_func=lambda w:w if w=='Todas' else week_label(config,w),key=f'execution_week_{selected.parent.name}_{control}')
-        if selected_week!='Todas':look=tasks_in_week(look,config,selected_week)
-        family_col='Familia_Constructiva' if 'Familia_Constructiva' in look else 'Actividad_Project'
-        activity=filter_row[1].selectbox('Familia constructiva',['Todas']+sorted(look[family_col].dropna().unique().tolist()))
-        if activity!='Todas':look=look[look[family_col]==activity]
-        task_owner=filter_row[2].selectbox('Responsable de la tarea',['Todos']+sorted(look.Responsable_Tarea.dropna().unique().tolist()))
-        if task_owner!='Todos':look=look[look.Responsable_Tarea==task_owner]
-        task=st.selectbox('Tarea Lookahead',['Todas']+look.ID_Tarea.tolist(),format_func=lambda x:x if x=='Todas' else str(look.loc[look.ID_Tarea==x,'Tarea_Lookahead'].iloc[0]))
-        if task!='Todas':look=look[look.ID_Tarea==task]
-        scope='Todas las semanas' if selected_week=='Todas' else f'Semana {week_label(config,selected_week)}'
-        st.caption(f'{scope} · {len(look)} tareas con los filtros seleccionados')
-        st.html(f'<style>{CSS}</style>'+table(hide_columns(look).drop(columns=['ID_Project','Actividad_Project'],errors='ignore')))
-        task_filters={'Semana de ejecución':scope,'Actividad':activity,'Responsable de tarea':task_owner,'Tarea':task}
-        download_table(hide_columns(look).drop(columns=['ID_Project','Actividad_Project'],errors='ignore'),config,'Tareas Lookahead',task_filters,'lookahead')
-    hab=hab[hab.ID_Tarea.isin(look.ID_Tarea)].copy()
-    with st.container(border=True):
-        st.subheader('2. Habilitantes y restricciones vinculados')
-        st.caption('Se muestran los habilitantes vinculados a las tareas seleccionadas arriba.')
-        hab_row=st.columns(3)
-        status_scope=hab_row[0].selectbox('Consulta de habilitantes',['Pendientes de liberación','Todos','Pendientes vencidos'])
-        if status_scope!='Todos':hab=pending_habilitantes(hab)
-        if status_scope=='Pendientes vencidos':hab=hab[hab.Fecha_Liberacion_Requerida<config['Fecha_Control']]
-        owner=hab_row[1].selectbox('Responsable de liberación del habilitante',['Todos']+sorted(hab.Responsable_Liberacion.dropna().unique().tolist()))
-        if owner!='Todos':hab=hab[hab.Responsable_Liberacion==owner]
-        state=hab_row[2].selectbox('Estado del habilitante',['Todos']+sorted(hab.Estado_Habilitante.dropna().unique().tolist()))
-        if state!='Todos':hab=hab[hab.Estado_Habilitante==state]
-        hab_row2=st.columns(3)
-        kind=hab_row2[0].selectbox('Tipo de habilitante',['Todos']+sorted(hab.Tipo_Habilitante.dropna().unique().tolist()))
-        if kind!='Todos':hab=hab[hab.Tipo_Habilitante==kind]
-        st.caption(f'{scope} · {len(hab)} habilitantes vinculados con los filtros seleccionados')
-        st.html(f'<style>{CSS}</style>'+table(hide_columns(hab).drop(columns=['ID_Tarea','ID_Project','Tipo_Habilitante','Fecha_Requerida_Liberacion_'],errors='ignore')))
-        download_table(hide_columns(hab).drop(columns=['ID_Tarea','ID_Project','Tipo_Habilitante','Fecha_Requerida_Liberacion_'],errors='ignore'),config,'Habilitantes y restricciones',{**task_filters,'Consulta':status_scope,'Responsable de liberación':owner,'Estado habilitante':state,'Tipo habilitante':kind},'habilitantes')
+    select('execution','Semana de ejecución',[('Todas','Todas')]+[(w,week_label(c,w)) for w in range(c['Semana_Control'],c['Semana_Control']+6)])
+    look=s['lookahead'].copy()
+    if state['execution']!='Todas':look=tasks_in_week(look,c,int(state['execution']))
+    select('family','Familia constructiva',['Todas']+sorted(look.Familia_Constructiva.dropna().unique().tolist()))
+    if state['family']!='Todas':look=look[look.Familia_Constructiva==state['family']]
+    select('owner','Responsable de tarea',['Todos']+sorted(look.Responsable_Tarea.dropna().unique().tolist()))
+    if state['owner']!='Todos':look=look[look.Responsable_Tarea==state['owner']]
+    select('task','Tarea Lookahead',[('Todas','Todas')]+[(r.ID_Tarea,r.Tarea_Lookahead) for r in look.itertuples()])
+    if state['task']!='Todas':look=look[look.ID_Tarea==state['task']]
+    hab=s['habilitantes'][s['habilitantes'].ID_Tarea.isin(look.ID_Tarea)].copy()
+    select('hab_scope','Consulta de habilitantes',['Pendientes de liberación','Todos','Pendientes vencidos'])
+    if state['hab_scope']!='Todos':hab=pending_habilitantes(hab)
+    if state['hab_scope']=='Pendientes vencidos':hab=hab[hab.Fecha_Liberacion_Requerida<c['Fecha_Control']]
+    for key,label,col in [('hab_owner','Responsable de liberación','Responsable_Liberacion'),('hab_state','Estado del habilitante','Estado_Habilitante'),('hab_kind','Tipo de habilitante','Tipo_Habilitante')]:
+        select(key,label,['Todos']+sorted(hab[col].dropna().unique().tolist()))
+        if state[key]!='Todos':hab=hab[hab[col]==state[key]]
+    body='<section class="panel"><h2>Tareas del Lookahead</h2>'+table(hide_columns(look).drop(columns=['ID_Project','Actividad_Project'],errors='ignore'))+'</section><section class="panel"><h2>Habilitantes y restricciones vinculados</h2>'+table(hide_columns(hab).drop(columns=['ID_Tarea','ID_Project','Tipo_Habilitante','Fecha_Requerida_Liberacion_'],errors='ignore'))+'</section>'
 else:
     if n==3:
-        available=list(range(1,config['Semana_Control']+1))
-        config=dict(config)
-        config['Semana_Consulta']=st.selectbox('Seleccionar semana',available,index=len(available)-1,format_func=lambda w:f'{week_label(config,w)} · semana de control' if w==config['Semana_Control'] else week_label(config,w),key=f'plan_week_{selected.parent.name}_{config["Semana_Control"]}')
-    body=page(n,config,sheets,include_header=False)
-    render_downloads(body,config,route,CSS)
+        select('plan_week','Semana del plan semanal',[(w,week_label(c,w)+(' · control' if w==c['Semana_Control'] else '')) for w in range(1,c['Semana_Control']+1)])
+        c={**c,'Semana_Consulta':int(state['plan_week'])}
+    body=page(n,c,s,include_header=False)
+# Exportar únicamente los listados visibles con los filtros aplicados.
+parser=VisibleTables();parser.feed(body)
+links=[]
+for i,(title,df) in enumerate(parser.tables):
+    data=base64.b64encode(excel_bytes(df,c,title,{'Página':names[n],**{k:v for k,v in state.items() if k!='page'}})).decode()
+    links.append(f'<a class="btn" download="Listado_{i+1}_S{c["Semana_Control"]}.xlsx" href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{data}">Descargar listado {i+1} · Excel</a>')
+# Mantener las descargas de gráficos del modelo.
+if n==4:
+    panels=re.split(r'(?=<div class="panel)',body)
+    for i,chunk in enumerate(panels):
+        if 'data:image/svg+xml' in chunk or 'class="bars"' in chunk:
+            match=re.search(r'<h2>(.*?)</h2>',chunk)
+            if match:
+                image=graph_png(chunk,match.group(1),c)
+                if image:links.append(f'<a class="btn" download="Grafico_{i}_S{c["Semana_Control"]}.png" href="data:image/png;base64,{base64.b64encode(image).decode()}">Descargar gráfico {i} · PNG</a>')
+if links:body+='<div class="downloads">'+''.join(links)+'</div>'
+payload={'names':names,'project':c['Proyecto'],'state':state,'filters':filters,'body':body,'cut':f'Programa maestro: {c["Semanas_Totales"]} semanas · Control: {week_label(c,c["Semana_Control"])} · Datos ficticios','horizon':f'Horizonte {week_label(c,c["Semana_Control"])} a {week_label(c,c["Semana_Control"]+5)} · término {week_end(c,c["Semana_Control"]+5).strftime("%d/%m/%Y")}'}
+ui=components.declare_component('daam_lps',path=str(root/'interfaz'))
+result=ui(payload=payload,key='daam_lps',default=state)
+if isinstance(result,dict) and result!=state:
+    allowed=set(state)
+    updated={k:result.get(k,state[k]) for k in allowed}
+    try:updated['page']=max(0,min(4,int(updated['page'])))
+    except (TypeError,ValueError):updated['page']=0
+    st.session_state.demo_ui=updated
+    st.rerun()
