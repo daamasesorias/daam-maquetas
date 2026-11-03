@@ -6,7 +6,7 @@ import math
 from data_model import pcp,cnc,CNC_MAP,management_summary,weekly_snapshot,week_start,week_end,week_label,invalid_week_records
 
 CSS='''
-*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#173960;background:#f4f7fb;font-size:16px}h1{font-size:28px;margin:0 0 8px}h2{font-size:19px;margin:0 0 20px}p{line-height:1.5}.project-name{font-size:20px;font-weight:600;margin-bottom:12px}.banner strong{display:block;line-height:1.8}.gantt td{padding:8px 10px}.muted{color:#6780a3;font-size:14px}.banner{background:#fff2e6;padding:16px;border-radius:8px;margin:20px 0}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:20px 0}.card,.panel{background:white;border:1px solid #dbe5f2;border-radius:9px;padding:20px}.card label{font-size:13px;font-weight:700;color:#6e85a8;display:block;margin-bottom:12px}.value{font-size:26px;font-weight:bold}.panel{margin:16px 0}.scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;border-bottom:1px solid #e2eaf4;padding:14px 10px;vertical-align:top}th{color:#7187a7;font-weight:600}td{min-width:100px}.gantt{min-width:1050px}.gantt td:first-child{min-width:80px}.gantt td:nth-child(2){min-width:300px}.bar{background:#294e78;height:14px;border-radius:3px;display:block}.week-now{background:#fff2e6}.good{color:#294e78}.bad{color:#d23a3a}.empty{padding:20px;color:#7187a7}.bars{display:flex;align-items:flex-end;gap:22px;min-height:220px;padding-top:25px;overflow-x:auto}.barcol{min-width:100px;text-align:center;font-size:13px;flex:1}.pillar{background:#294e78;margin:10px auto;width:50px;border-radius:4px 4px 0 0}.linechart{width:100%;min-width:500px}button,select{font:inherit} @media(max-width:600px){.cards{grid-template-columns:1fr 1fr}.card{padding:14px}.value{font-size:23px}.panel{padding:14px}h1{font-size:23px}th,td{padding:10px;font-size:14px}}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:#173960;background:#f4f7fb;font-size:16px}h1{font-size:28px;margin:0 0 8px}h2{font-size:19px;margin:0 0 20px}p{line-height:1.5}.project-name{font-size:20px;font-weight:600;margin-bottom:12px}.banner strong{display:block;line-height:1.8}.gantt td{padding:8px 10px}.muted{color:#6780a3;font-size:14px}.banner{background:#fff2e6;padding:16px;border-radius:8px;margin:20px 0}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:20px 0}.card,.panel{background:white;border:1px solid #dbe5f2;border-radius:9px;padding:20px}.card label{font-size:13px;font-weight:700;color:#6e85a8;display:block;margin-bottom:12px}.value{font-size:26px;font-weight:bold}.panel{margin:16px 0}.scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;border-bottom:1px solid #e2eaf4;padding:14px 10px;vertical-align:top}th{color:#7187a7;font-weight:600}td{min-width:100px}.gantt{min-width:1050px}.gantt td:first-child{min-width:80px}.gantt td:nth-child(2){min-width:300px}.bar{background:#294e78;height:14px;border-radius:3px;display:block}.week-now{background:#fff2e6}.good{color:#294e78}.bad{color:#d23a3a}.empty{padding:20px;color:#7187a7}.bars{display:flex;align-items:stretch;gap:22px;min-height:250px;padding-top:25px;overflow-x:auto}.barcol{min-width:100px;text-align:center;font-size:13px;flex:1}.pillar{background:#294e78;margin:10px auto;width:50px;border-radius:4px 4px 0 0}.linechart{width:100%;min-width:500px}button,select{font:inherit} @media(max-width:600px){.cards{grid-template-columns:1fr 1fr}.card{padding:14px}.value{font-size:23px}.panel{padding:14px}h1{font-size:23px}th,td{padding:10px;font-size:14px}}
 '''
 def e(x): return escape(str(x))
 def card(title,value,sub='',color=''):
@@ -23,7 +23,7 @@ def table(df,cols=None):
 def bars(counts):
     if counts.empty:return '<p class="empty">Sin causas registradas.</p>'
     maximum=max(counts.max(),1)
-    return '<div class="bars">'+''.join(f'<div class="barcol"><b>{int(n)}</b><div class="pillar" style="height:{max(8,160*n/maximum)}px"></div>{e(c)}</div>' for c,n in counts.items())+'</div>'
+    return '<div class="bars">'+''.join(f'<div class="barcol" style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end"><div style="height:190px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;width:100%"><b>{int(n)}</b><div class="pillar" style="height:{max(8,160*n/maximum)}px;flex-shrink:0"></div></div><div style="height:55px;width:100%;text-align:center;display:flex;align-items:flex-start;justify-content:center">{e(c)}</div></div>' for c,n in counts.items())+'</div>'
 def heading(n,c):
     titles=['Resumen LPS','Programa resumen de 6 semanas','Lookahead, habilitantes y restricciones','Plan semanal','PPC y CNC']
     out=f'<div class="project-name">{e(c["Proyecto"])}</div><h1>{"PPC: Porcentaje de Compromisos Planificados Cumplidos<br>CNC: Causas de No Cumplimiento" if n==4 else titles[n]}</h1>'
@@ -175,8 +175,9 @@ def comparison_cnc(plan,week,config=None):
     svg+='<text x="12" y="18" fill="#6780a3" font-size="14">Cantidad</text>'
     for i,cause in enumerate(causes):
         center=left+(i+.5)*group;barwidth=min(42,group/(len(weeks)+3));gap=7
-        for j,(w,color) in enumerate(zip(weeks,colors)):
-            value=int(counts[w].get(cause,0));x=center+(j-(len(weeks)-1)/2)*(barwidth+gap)-barwidth/2
+        active=[(w,color) for w,color in zip(weeks,colors) if counts[w].get(cause,0)>0]
+        for j,(w,color) in enumerate(active):
+            value=int(counts[w].get(cause,0));x=center+(j-(len(active)-1)/2)*(barwidth+gap)-barwidth/2
             if value:
                 h=(bottom-top)*value/axismax;y=bottom-h
                 svg+=f'<rect x="{x}" y="{y}" width="{barwidth}" height="{h}" fill="{color}"><title>{e(cause)} · S{w}: {value}</title></rect><text x="{x+barwidth/2}" y="{y-9}" text-anchor="middle" font-size="12" font-weight="700" fill="#173960">{value}</text>'
