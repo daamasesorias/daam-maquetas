@@ -26,17 +26,17 @@ En Streamlit Community Cloud, seleccionar `app.py` como archivo principal y cons
 | Control_semanal | Una fila por vivienda y semana, avances acumulados P01–P09, gasto real, costo pendiente estimado y término proyectado |
 | Reprogramaciones | Vivienda y partida, semana desde la que aplica, nuevas fechas y motivo |
 
-Montos en millones de CLP netos, sin IVA: `48` significa $48.000.000. Avances en fracción: `0,5` equivale al 50 %; Excel los muestra como porcentaje. Los campos vacíos no representan automáticamente cero. Cada semana registrada requiere sus 36 viviendas. Los cortes van de lunes a domingo, desde el 13/07/2026. Semana predeterminada S12, corte 04/10/2026. El ejemplo incluye 26 semanas y comienza con datos ficticios completos para explorar distintos cortes.
+Montos en millones de CLP netos, sin IVA: `48` significa $48.000.000. Avances en fracción: `0,5` equivale al 50 %; Excel los muestra como porcentaje. Los campos vacíos no representan automáticamente cero. Cada semana registrada requiere sus 36 viviendas. Los cortes van de lunes a domingo, desde el 13/07/2026. Semana predeterminada S12, corte 04/10/2026. El ejemplo incluye 35 semanas y comienza con datos ficticios completos para explorar distintos cortes.
 
 Al registrar información real, dejar en blanco los inicios y términos reales que todavía no ocurren. El ejemplo tiene fechas reales ficticias posteriores al corte inicial para permitir recorrer su historia; la plataforma las oculta hasta el corte correspondiente. Las viviendas terminadas deben tener sus nueve avances en 100 %, fecha real de término y costo pendiente cero. Registrar nuevas reprogramaciones en filas adicionales; conservar la línea base.
 
 ## Cinco hojas de la plataforma
 
 1. **Resumen ejecutivo:** datos de la obra, avance programado/real, desviación y forecast de término; gasto programado/real, desviación al corte y forecast final; viviendas terminadas, en proceso, atrasadas, con sobrecosto e inicios pendientes. Tabla comparativa agrupada por tipología. Sin curvas ni mapa.
-2. **Programación rítmica por vivienda:** Gantt con nueve segmentos de colores por vivienda, secuencia, fechas, relleno de avance y línea de corte; comparación con línea base y programa vigente. Filtros por sector, etapa, tipología, vivienda, semanas y fechas.
+2. **Programación rítmica:** Gantt con dos equipos que comienzan simultáneamente. Equipo 1 para viviendas de un piso, con ciclo de 7 días por partida; Equipo 2 para dos pisos, con ciclo de 9 días por partida. Cada especialidad avanza por las 18 viviendas sin solaparse consigo misma. Nueve segmentos de colores por vivienda, fechas, avance y línea de corte; comparación con línea base y programa vigente. Filtros por sector, etapa, tipología, vivienda, semanas y fechas. Las filas se ordenan por equipo y secuencia de construcción.
 3. **Mapa del proyecto:** 36 puntos originales, vistas por estado/atraso/sobrecosto y ficha seleccionable que abre el detalle. Fondo satelital Esri con atribución. Si falla la cartografía, los puntos siguen disponibles; si no carga Leaflet, hay una vista esquemática por las mismas coordenadas.
 4. **Detalle de vivienda:** estado, atraso, fechas base/vigentes/reales, avance y costos, plano y render ampliables de la tipología. Selector para revisar otras viviendas.
-5. **Avance por partidas por vivienda:** Excavaciones; Fundaciones; Estructura Muro; Cubierta; Pisos interiores; Muros interiores; Terminaciones; Instalaciones; Obras Exteriores. Fechas base y vigentes, peso, avance programado, real y aporte al total, con alertas por partida.
+5. **Avance por partidas por vivienda:** filtros por etapa, tipología, vivienda y semana; sin filtro ni encabezados por sector. Excavaciones; Fundaciones; Estructura Muro; Cubierta; Pisos interiores; Muros interiores; Terminaciones; Instalaciones; Obras Exteriores. Fechas base y vigentes, peso, avance programado, real y aporte al total, con alertas por partida.
 
 ## Criterios de cálculo
 
@@ -56,4 +56,6 @@ Los planos SVG, renders PNG y el único logo están en `interfaz`. El Excel rela
 
 ## Verificación de la entrega
 
-Se revisaron los seis esquemas del Excel, las 36 coordenadas, la alternancia de las tipologías, los 26 cortes, los 324 registros de programa, la suma de ponderaciones, la consistencia de fechas/estados, las reprogramaciones y la reconciliación de costos y avances. Se ejecutaron pruebas de las cinco vistas y filtros con un DOM de prueba. No se realizó una sesión visual en un navegador real en este entorno.
+Se revisaron los seis esquemas del Excel, las 36 coordenadas, la alternancia de las tipologías, los 35 cortes, los 324 registros de programa, la suma de ponderaciones, la consistencia de fechas/estados, las reprogramaciones y la reconciliación de costos y avances. Se ejecutaron pruebas de las cinco vistas y filtros con un DOM de prueba. No se realizó una sesión visual en un navegador real en este entorno.
+
+Los marcadores del mapa representan casas de uno o dos pisos con su número visible, manteniendo los colores de estado y alertas. El logo mantiene el diseño existente con mayor espacio alrededor.
