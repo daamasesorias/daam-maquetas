@@ -1,0 +1,127 @@
+'use strict';
+const C=MasivaCore,$=s=>document.querySelector(s),names=['Resumen ejecutivo','Programación rítmica','Mapa del proyecto','Detalle de vivienda','Avance por partidas por vivienda'];
+const palette=['#b8976a','#527da7','#28577d','#758ba0','#b58c49','#688d90','#8a7497','#cf885f','#6c966a'];
+const colors={'Sin iniciar':'#8b9bb0','En proceso':'#436f9b','Terminada':'#2b806b'};
+let data=null,page=0,map=null,state={week:null,stage:'Todas',type:'Todas',unit:'Todas',status:'Todos',view:'Estado',program:'Programación vigente',from:'',to:''},selected='V-001';
+const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=n=>Number(n).toLocaleString('es-CL',{maximumFractionDigits:1});
+const pct=n=>num(n*100)+' %',money=n=>'$ '+num(n)+' MM';
+const date=n=>n===null||n===undefined?'—':C.iso(n).split('-').reverse().join('/');
+const button=id=>`<button class="link" data-unit="${esc(id)}">${esc(id)}</button>`;
+const badge=(text,bad=false)=>`<span class="badge ${bad?'danger':''}">${esc(text)}</span>`;
+const panel=(title,html)=>`<section class="panel"><h2>${title}</h2>${html}</section>`;
+const card=(label,value,hint='',bad=false)=>`<div class="card"><div class="label">${label}</div><div class="value ${bad?'danger':''}">${value}</div><div class="hint">${hint}</div></div>`;
+const pair=(title,plan,real,hint)=>`<div class="card"><div class="label">${title}</div><div class="pair"><div><small>Programado</small><strong>${plan}</strong></div><div><small>Real</small><strong>${real}</strong></div></div><div class="hint">${hint}</div></div>`;
+function table(headers,rows,footer=''){return `<div class="tablewrap"><table><thead><tr>${headers.map(h=>`<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(r=>`<tr>${r.map(v=>`<td>${v}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${headers.length}" class="empty">Sin viviendas para estos filtros.</td></tr>`}</tbody>${footer}</table></div>`;}
+function send(type,extra={}){window.parent.postMessage({isStreamlitMessage:true,type,...extra},'*')}
+function resize(){send('streamlit:setFrameHeight',{height:Math.ceil(document.documentElement.getBoundingClientRect().height)})}
+function filtered(week=state.week){return C.snapshot(data,Number(week)).filter(u=>(state.stage==='Todas'||u.Etapa===state.stage)&&(state.type==='Todas'||u.Tipologia===state.type)&&(state.unit==='Todas'||u.ID===state.unit)&&(state.status==='Todos'||state.status===u.state||state.status==='Atrasadas'&&u.late||state.status==='Con sobrecosto'&&u.eac>u.budget+.01));}
+function option(label,key,options){const el=document.createElement('label');el.textContent=label;const s=document.createElement('select');s.id=key;s.setAttribute('aria-label',label);options.forEach(([value,text])=>{const o=document.createElement('option');o.value=value;o.textContent=text;o.selected=String(value)===String(state[key]);s.appendChild(o)});s.onchange=()=>{state[key]=s.value;if(key==='stage'||key==='type')state.unit='Todas';render()};el.appendChild(s);$('#filters').appendChild(el);}
+function filters(){
+ $('#filters').innerHTML='';option('Semana de control','week',data.weeks.map(w=>[w,'Semana '+w]));
+ if(page===0)return;
+ option('Etapa','stage',[['Todas','Todas'],...[...new Set(data.Viviendas.map(u=>u.Etapa))].map(x=>[x,x])]);
+ option('Tipología','type',[['Todas','Todas'],...data.Tipologias.map(t=>[t.ID,t.Nombre])]);
+ if(page!==3)option('Vivienda','unit',[['Todas','Todas'],...data.Viviendas.filter(u=>(state.stage==='Todas'||u.Etapa===state.stage)&&(state.type==='Todas'||u.Tipologia===state.type)).map(u=>[u.ID,u.ID])]);
+ if(page===2){option('Estado / alerta','status',['Todos','Sin iniciar','En proceso','Terminada','Atrasadas','Con sobrecosto'].map(v=>[v,v]));}
+ if(page===1){option('Programación','program',['Programación vigente','Línea base'].map(v=>[v,v]));for(const [label,key] of [['Desde','from'],['Hasta','to']]){const l=document.createElement('label');l.textContent=label;const input=document.createElement('input');input.type='date';input.id=key;input.value=state[key];input.onchange=()=>{state[key]=input.value;render()};l.appendChild(input);$('#filters').appendChild(l)}}
+}
+function detailsInfo(entries){return `<div class="info">${entries.map(([k,v])=>`<div><small>${k}</small><strong>${v}</strong></div>`).join('')}</div>`;}
+function summary(){
+ const units=C.snapshot(data,Number(state.week)),a=C.aggregate(units),o=data.obra;
+ const start=C.day(o.Inicio_programado),end=C.day(o.Fin_programado),cut=start+Number(state.week)*7-1;
+ const delta=a.real-a.base,costGap=a.cost-a.costPlan,forecastGap=a.forecast-end;
+ let html=panel('Datos de la obra',detailsInfo([['Nombre de la obra',esc(o.Nombre)],['Dirección',esc(o.Direccion)],['Inicio programado',date(start)],['Término programado',date(end)],['Duración',(end-start+1)+' días corridos'],['Monto contractual',money(o.Monto_contractual_MM_CLP)],['Presupuesto de costo',money(a.budget)],['Total de viviendas',units.length+' · '+data.Tipologias.map(t=>units.filter(u=>u.Tipologia===t.ID).length+' Tipo '+esc(t.ID)).join(' / ')],['Cantidad de semanas',o.Semanas_totales+' semanas'],['Semana de control','S'+state.week+' · '+date(cut)],['Etapas',new Set(units.map(u=>u.Etapa)).size+' etapas'],['Tipologías',data.Tipologias.map(t=>t.Pisos+' piso(s) · '+t.Superficie_m2+' m²').join(' / ')]]));
+ html+='<div class="section-label">Avance físico del conjunto</div><div class="cards three">'+pair('Avance programado vs. real',pct(a.base),pct(a.real),'Acumulado a la fecha de corte')+card('Desviación de avance',num(delta*100)+' pp','Real − programado · línea base',delta<-.0001)+card('Alerta · forecast de avance',date(a.forecast),(forecastGap>0?'+':'')+forecastGap+' días respecto del término programado',forecastGap>0)+'</div>';
+ html+='<div class="section-label">Costos · CLP netos sin IVA</div><div class="cards three">'+pair('Costo programado vs. real',money(a.costPlan),money(a.cost),'Gasto acumulado al corte')+card('Desviación de costo al corte',money(costGap),'Real − programado. Diferencia de gasto al corte.')+card('Alerta · forecast de costo',money(a.eac),(a.eac>a.budget?'+':'')+money(a.eac-a.budget)+' respecto del presupuesto',a.eac>a.budget+.01)+'</div>';
+ html+='<div class="section-label">Estado de las viviendas</div><div class="cards three">'+card('Viviendas terminadas',a.finished,'Avance físico de 100 %')+card('Viviendas en proceso',a.active,'Iniciadas y aún sin terminar')+card('Viviendas atrasadas',a.late,'Comparación con la programación vigente',a.late>0)+'</div>';
+ const over=units.filter(u=>u.eac>u.budget+.01).sort((x,y)=>(y.eac-y.budget)-(x.eac-x.budget));
+ html+='<div class="cards three">'+card('Viviendas con sobrecosto proyectado',a.over,'Costo final proyectado mayor que su presupuesto',a.over>0)+card('Mayor sobrecosto proyectado',over.length?esc(over[0].ID):'Sin alertas',over.length?money(over[0].eac-over[0].budget)+' · '+pct(over[0].eac/over[0].budget-1):'Dentro del presupuesto',over.length>0)+card('Inicios pendientes',a.pending,'Debieron iniciar al corte y aún tienen 0 %',a.pending>0)+'</div>';
+ html+=panel('Alertas ejecutivas',`${a.late?`<div class="alert red">${a.late} viviendas con atraso, incluidas ${a.pending} con inicio pendiente.</div>`:'<p>Sin viviendas atrasadas al corte.</p>'}${a.over?`<div class="alert">${a.over} viviendas con costo final proyectado sobre su presupuesto.</div>`:''}<p class="note">Una vivienda en proceso puede estar atrasada y presentar sobrecosto. Las tarjetas no se suman entre sí. El atraso se evalúa contra el programa vigente; la desviación global conserva la comparación con la línea base.</p>`);
+ html+=panel('Comparación de costos por vivienda',`<p class="note">Comparar viviendas de la misma tipología. El costo final proyectado considera gasto real más costo pendiente estimado; el gasto al corte por sí solo no indica ahorro ni sobrecosto.</p>`+table(['Vivienda','Tipología','Presupuesto','Costo real al corte','Costo final proyectado','Desviación final'],[...units].sort((x,y)=>x.Tipologia.localeCompare(y.Tipologia)||(y.eac/y.budget-x.eac/x.budget)).map(u=>[button(u.ID),esc(u.Tipologia),money(u.budget),money(u.cost),money(u.eac),badge(money(u.eac-u.budget)+' · '+pct(u.eac/u.budget-1),u.eac>u.budget+.01)])));
+ return html;
+}
+function gantt(units){
+ const from=state.from?C.day(state.from):C.day(data.obra.Inicio_programado),to=state.to?C.day(state.to):Math.max(C.day(data.obra.Fin_programado),...units.map(u=>Math.max(u.end,u.forecast)));
+ if(!Number.isFinite(from)||!Number.isFinite(to)||to<from)return panel('Programación rítmica','<p>La fecha Hasta debe ser igual o posterior a Desde.</p>');
+ const weeks=Math.ceil((to-from+1)/7),calendarWidth=weeks*48,width=calendarWidth+220,px=48/7,cut=C.day(data.obra.Inicio_programado)+state.week*7-1;
+ let rows='',group='';
+ for(const u of [...units].sort((a,b)=>a.Tipologia.localeCompare(b.Tipologia)||a.baseStart-b.baseStart)){
+  if(u.Tipologia!==group){group=u.Tipologia;rows+=`<tr class="group"><td colspan="2">${u.Tipologia==='A'?esc(data.obra.Equipo_Tipo_A):esc(data.obra.Equipo_Tipo_B)}</td></tr>`}
+  const start=state.program==='Línea base'?u.baseStart:u.start,end=state.program==='Línea base'?u.baseEnd:u.end;
+  let bar='';
+  if(end>=from&&start<=to){
+   const left=(Math.max(start,from)-from)*px,w=(Math.min(end,to)-Math.max(start,from)+1)*px;
+   const realEnd=start+(end-start+1)*u.real,realWidth=Math.max(0,Math.min(Math.min(end+1,to+1),realEnd)-Math.max(start,from))*px;
+   const status=u.state+' · '+pct(u.real)+(u.late?' · Atrasada':'');
+   bar=`<div class="housebar" title="${esc(u.ID+' · '+date(start)+'–'+date(end)+' · '+status)}" style="left:${left}px;width:${w}px"><div class="housefill" style="width:${realWidth}px"></div></div><span class="bar-status" style="left:${left+w+8}px">${esc(status)}</span>`;
+  }
+  const cutline=cut>=from&&cut<=to?`<div class="cut" style="left:${(cut-from+1)*px}px" title="Corte ${date(cut)}"></div>`:'';
+  rows+=`<tr><td class="unitcell">${button(u.ID)}</td><td class="timecell"><div class="rowtrack" style="width:${width}px">${bar}${cutline}</div></td></tr>`;
+ }
+ const head=Array.from({length:weeks},(_,i)=>{const d=from+i*7;return `<span>S${Math.floor((d-C.day(data.obra.Inicio_programado))/7)+1}<br>${date(d).slice(0,5)}</span>`}).join('');
+ return panel('Continuidad de los equipos de construcción',`<div class="legend"><span><i class="swatch" style="background:#28577d"></i>Ejecutado</span><span><i class="swatch" style="background:#b9d9f0"></i>Pendiente por construir</span></div><p class="note">Una barra representa la duración completa de cada vivienda. Ambos equipos parten simultáneamente, con desfases de 7 días para un piso y 9 días para dos pisos. Línea naranja: fecha de corte.</p><div class="ganttwrap"><table class="rhythm"><thead><tr><th class="unitcell">Vivienda</th><th class="timecell"><div class="week-head" style="width:${width}px">${head}</div></th></tr></thead><tbody>${rows||'<tr><td class="empty">Sin viviendas para estos filtros.</td></tr>'}</tbody></table></div>`);
+}
+function mapColor(u){return u.state==='Sin iniciar'?'#8b9bb0':u.state==='Terminada'?'#28577d':u.late?'#c94343':'#e3b32d'}
+function houseShape(u){
+ const type=data.Tipologias.find(t=>t.ID===u.Tipologia),two=Number(type.Pisos)===2,c=mapColor(u),stroke='white';
+ return `<path d="M3 ${two?16:25}L22 ${two?2:11}L41 ${two?16:25}H37V44H7V${two?16:25}Z" fill="${c}" stroke="${stroke}" stroke-width="2.5" stroke-linejoin="round"/>${two?'<path d="M12 17H18V23H12ZM26 17H32V23H26Z" fill="white" opacity=".9"/>':''}<text x="22" y="37" fill="${c==='#e3b32d'?'#102e52':'white'}" font-family="Arial,sans-serif" font-size="11" font-weight="bold" text-anchor="middle">${esc(u.ID.slice(2))}</text>`;
+}
+function houseIcon(u){return `<svg width="44" height="52" viewBox="0 0 44 52" role="img" aria-label="${esc(u.ID)} · ${data.Tipologias.find(t=>t.ID===u.Tipologia).Pisos} piso(s)">${houseShape(u)}</svg>`;}
+function mapPage(units){
+ const legend=[['Sin iniciar','#8b9bb0'],['Terminada','#28577d'],['En proceso · atrasada','#c94343'],['En proceso · sin atraso','#e3b32d']];
+ return panel('Ubicación de las viviendas',`<div class="legend">${legend.map(([s,c])=>`<span><i class="swatch" style="background:${c}"></i>${s}</span>`).join('')}</div><div id="map"></div><p class="map-note">36 puntos originales conservados alrededor de −36,780244 / −73,0720812, Talcahuano. Viviendas ficticias alternadas: A de un piso y B de dos pisos. Pulse una vivienda para abrir su detalle. La distribución no representa un loteo real.</p>`)+`<div id="map-selection">${panel('Seleccione una vivienda','<p class="muted">Seleccione una vivienda del mapa para abrir directamente su detalle.</p>')}</div>`;
+}
+function mapSelection(u){return panel('Vivienda '+esc(u.ID),`<div class="statusline">${badge(u.state)}${u.late?badge('Atrasada',true):''}${u.eac>u.budget+.01?badge('Sobrecosto proyectado',true):''}</div>`+detailsInfo([['Tipología',esc(u.Tipologia)+' · '+(u.Tipologia==='A'?'1 piso':'2 pisos')],['Etapa',esc(u.Etapa)],['Avance programado / real',pct(u.base)+' / '+pct(u.real)],['Inicio / fin programados',date(u.baseStart)+' / '+date(u.baseEnd)],['Término proyectado',date(u.forecast)],['Presupuesto',money(u.budget)],['Costo real',money(u.cost)],['Costo final proyectado',money(u.eac)]])+`<p style="margin-top:16px"><button class="link" data-unit="${esc(u.ID)}">Ver vivienda ${esc(u.ID)}</button></p>`);}
+function drawMap(units){
+ function select(u){if(u)openUnit(u.ID)}
+ if(!window.L){
+  const minlat=-36.780244-.0005,maxlat=-36.780244+.0005,minlng=-73.0720812-.0006,maxlng=-73.0720812+.0006;
+  $('#map').style.height='auto';$('#map').innerHTML=`<svg class="map-fallback" viewBox="0 0 800 500" role="img" aria-label="Distribución de viviendas por coordenadas"><text x="20" y="28" fill="#667b92" font-size="14">Vista por coordenadas · cartografía sin conexión</text>${units.map(u=>{const x=50+(u.Longitud-minlng)/(maxlng-minlng)*700,y=460-(u.Latitud-minlat)/(maxlat-minlat)*400;return `<a data-map-unit="${esc(u.ID)}" tabindex="0" role="button" aria-label="Vivienda ${esc(u.ID)}"><g transform="translate(${x-22} ${y-38})">${houseShape(u)}</g></a>`}).join('')}</svg>`;
+  document.querySelectorAll('[data-map-unit]').forEach(e=>{e.onclick=()=>select(units.find(u=>u.ID===e.dataset.mapUnit));e.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();e.onclick()}}});resize();return;
+ }
+ map=L.map('map',{scrollWheelZoom:false}).setView([-36.780244,-73.0720812],18);
+ const tiles=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Imagery © Esri, Maxar, Earthstar Geographics'}).addTo(map);let warned=false;
+ tiles.on('tileerror',()=>{if(!warned){warned=true;$('#map-selection').insertAdjacentHTML('afterbegin','<p class="alert">Fondo satelital no disponible; los puntos conservan sus coordenadas y selección.</p>');resize()}});
+ units.forEach(u=>{const title=`${u.ID} · Tipo ${u.Tipologia} · ${u.state}${u.late?' · Atrasada':''}`,icon=L.divIcon({className:'unit-marker',html:houseIcon(u),iconSize:[44,52],iconAnchor:[22,44]});const marker=L.marker([u.Latitud,u.Longitud],{icon,title}).addTo(map);marker.bindTooltip(esc(title));marker.on('click',()=>select(u))});
+ if(units.length)map.fitBounds(units.map(u=>[u.Latitud,u.Longitud]),{padding:[40,40],maxZoom:19});
+ setTimeout(()=>map&&map.invalidateSize(),50);
+}
+function detail(units){
+ if(!units.length)return panel('Detalle de vivienda','<p>Sin viviendas para estos filtros.</p>');
+ let u=units.find(u=>u.ID===selected)||units[0];selected=u.ID;
+ const t=data.Tipologias.find(t=>t.ID===u.Tipologia);
+ let html=panel('Seleccione una vivienda',`<label>Vivienda <select id="detail-unit" class="btn">${units.map(x=>`<option value="${esc(x.ID)}" ${x.ID===u.ID?'selected':''}>${esc(x.ID+' · '+x.Etapa+' · Tipo '+x.Tipologia)}</option>`).join('')}</select></label>`);
+ html+=panel(esc(u.ID)+' · '+esc(t.Nombre),`<div class="statusline">${badge(u.state)}${u.late?badge('Atrasada',true):''}${u.actualEnd!==null?badge(u.actualEnd>u.baseEnd?'Terminó con atraso':'Terminó dentro de plazo',u.actualEnd>u.baseEnd):''}${u.eac>u.budget+.01?badge('Sobrecosto proyectado',true):''}</div>`+detailsInfo([['Etapa',esc(u.Etapa)],['Superficie',t.Superficie_m2+' m²'],['Distribución',t.Dormitorios+' dormitorios · '+t.Banos+' baño(s)'],['Ubicación',u.Latitud.toFixed(6)+' / '+u.Longitud.toFixed(6)],['Inicio programado',date(u.baseStart)],['Fin programado',date(u.baseEnd)],['Inicio real',date(u.actualStart)],['Fin real',date(u.actualEnd)],['Inicio vigente',date(u.start)],['Fin vigente',date(u.end)],['Término proyectado',date(u.forecast)],['Diferencia de término',(u.forecast-u.baseEnd)+' días vs. línea base']]));
+ html+='<div class="cards three">'+pair('Avance programado vs. real',pct(u.base),pct(u.real),'Ponderado por las nueve partidas')+card('Desviación de avance',num((u.real-u.base)*100)+' pp','Real − línea base',u.real<u.base-.0001)+card('Costo final proyectado',money(u.eac),money(u.eac-u.budget)+' vs. presupuesto',u.eac>u.budget+.01)+'</div>';
+ html+=panel('Costos de la vivienda · CLP netos',detailsInfo([['Presupuesto',money(u.budget)],['Costo programado al corte',money(u.costPlan)],['Costo real al corte',money(u.cost)],['Costo pendiente estimado',money(u.remaining)],['Costo final proyectado',money(u.eac)],['Desviación final',money(u.eac-u.budget)+' · '+pct(u.eac/u.budget-1)]]));
+ html+=`<div class="visuals">${panel('Plano de planta · Tipo '+esc(t.ID),`<img data-enlarge src="${esc(t.Plano)}" alt="Plano referencial de ${esc(t.Nombre)}"><p class="note">${t.Pisos===2?'Primer y segundo piso. ':''}Esquema referencial de demostración. Pulse para ampliar.</p>`)}<div class="render">${panel('Render exterior · Tipo '+esc(t.ID),`<img data-enlarge src="${esc(t.Render)}" alt="Render referencial de ${esc(t.Nombre)}"><p class="note">Vista 3D referencial de la tipología. Pulse para ampliar.</p>`)}</div></div>`;
+ html+=panel('Avance resumido de partidas',tasksTable(u));
+ return html;
+}
+function tasksTable(u){return table(['Partida','Inicio base','Fin base','Inicio vigente','Fin vigente','Peso','Programado','Real','Aporte al total','Estado'],u.tasks.map(t=>[esc(t.Nombre),date(C.day(t.Inicio_base)),date(C.day(t.Fin_base)),date(t.start),date(t.end),pct(t.Peso),pct(t.base),pct(t.real),pct(t.Peso*t.real),badge(t.state)+(t.late?' '+badge('Atrasada',true):'')+(t.replanned?' '+badge('Reprogramada'):'')]),`<tfoot><tr><td colspan="5">Total vivienda ${esc(u.ID)}</td><td>100 %</td><td>${pct(u.base)}</td><td>${pct(u.real)}</td><td>${pct(u.real)}</td><td></td></tr></tfoot>`)}
+function parts(units){
+ const a=C.aggregate(units);let html='<div class="cards three">'+pair('Avance del alcance seleccionado',pct(a.base),pct(a.real),'Ponderación entre viviendas por presupuesto de costo')+card('Desviación',num((a.real-a.base)*100)+' pp','Comparación con línea base',a.real<a.base-.0001)+card('Viviendas seleccionadas',units.length,'Nueve partidas por vivienda')+'</div>';
+ if(!units.length)return html+panel('Avance por partidas','<p>Sin viviendas para estos filtros.</p>');
+ for(const u of units)html+=panel(button(u.ID)+' · Tipo '+esc(u.Tipologia)+' · '+esc(u.Etapa),tasksTable(u));
+ html+='<p class="note">Aporte al total de cada vivienda = peso de la partida × avance real. Los nueve pesos suman 100 %. El avance del conjunto pondera cada vivienda por su presupuesto, para considerar las diferentes tipologías. Las partidas reprogramadas se evalúan por sus fechas vigentes; el programado mostrado conserva la línea base.</p>';
+ return html;
+}
+function openUnit(id){const unit=data.Viviendas.find(u=>u.ID===id);if(!unit)return;selected=id;page=3;state.unit='Todas';state.status='Todos';if(state.stage!=='Todas'&&state.stage!==unit.Etapa)state.stage='Todas';if(state.type!=='Todas'&&state.type!==unit.Tipologia)state.type='Todas';render();window.scrollTo({top:0,behavior:'smooth'})}
+function bindUnits(){document.querySelectorAll('[data-unit]').forEach(b=>b.onclick=()=>openUnit(b.dataset.unit))}
+function exportCSV(units){const rows=[['Vivienda','Etapa','Tipologia','Estado','Atrasada','Avance_programado_pct','Avance_real_pct','Presupuesto_MM_CLP','Costo_real_MM_CLP','Costo_final_proyectado_MM_CLP'],...units.map(u=>[u.ID,u.Etapa,u.Tipologia,u.state,u.late?'Sí':'No',num(u.base*100),num(u.real*100),num(u.budget),num(u.cost),num(u.eac)])];const csv='\ufeff'+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='viviendas_S'+state.week+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function render(){
+ if(!data)return;if(map){map.remove();map=null}
+ $('#title').textContent=names[page];$('#project').textContent=data.obra.Nombre;
+ const cut=C.day(data.obra.Inicio_programado)+Number(state.week)*7-1;
+ $('#cut').textContent='Semana '+state.week+' · Corte: '+date(cut)+' · Datos desde maestro_construccion_masiva.xlsx';
+ $('nav').innerHTML='';names.forEach((name,i)=>{const b=document.createElement('button');b.textContent=name;b.className=i===page?'active':'';b.setAttribute('aria-current',i===page?'page':'false');b.onclick=()=>{page=i;state.status='Todos';state.unit='Todas';render()};$('nav').appendChild(b)});
+ filters();const units=filtered();$('#body').innerHTML=page===0?summary():page===1?gantt(units):page===2?mapPage(units):page===3?detail(units):parts(units);
+ if(page===0||page===4){$('#body').insertAdjacentHTML('beforeend','<button id="export-csv" class="btn download">Descargar resumen de viviendas · CSV</button>');$('#export-csv').onclick=()=>exportCSV(page===0?C.snapshot(data,Number(state.week)):units)}
+ bindUnits();if(page===2)drawMap(units);
+ if(page===3&&$('#detail-unit'))$('#detail-unit').onchange=e=>{selected=e.target.value;render()};
+ document.querySelectorAll('[data-enlarge]').forEach(img=>img.onclick=()=>{$('#large-image').src=img.src;$('#large-image').alt=img.alt;$('#image-caption').textContent=img.alt;$('#image-dialog').showModal()});resize();
+}
+$('#close-image').onclick=()=>$('#image-dialog').close();
+window.addEventListener('message',event=>{if(event.source!==window.parent||event.data?.type!=='streamlit:render')return;data=event.data.args.data;if(!data)return;if(state.week===null)state.week=Number(data.obra.Semana_control);render()});
+new ResizeObserver(resize).observe(document.body);send('streamlit:componentReady',{apiVersion:1});window.addEventListener('load',resize);
